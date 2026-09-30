@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AICHAT_")
 
     operator_key: str = ""
+    host: str = "127.0.0.1"
+    port: int = 8765
     store: Literal["memory"] = "memory"
 
     max_text_bytes: int = 32 * 1024

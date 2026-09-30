@@ -69,4 +69,5 @@ def create_app(
 
 def run() -> None:
     logging.basicConfig(level=logging.INFO)
-    uvicorn.run(create_app(), host="127.0.0.1", port=8765)
+    settings = Settings()
+    uvicorn.run(create_app(settings), host=settings.host, port=settings.port)
