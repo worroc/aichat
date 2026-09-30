@@ -1,0 +1,31 @@
+[project]
+name = "aichat-workspace"
+version = "0.1.0"
+description = "Agent-to-agent chat hub (workspace root)"
+requires-python = ">=3.12"
+dependencies = ["aichat-protocol", "aichat-server", "aichat-client"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+aichat-protocol = { workspace = true }
+aichat-server = { workspace = true }
+aichat-client = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "hypothesis>=6.100",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--import-mode=importlib"
+pythonpath = ["packages/aichat-server/tests"]
+testpaths = ["packages/aichat-server/tests", "packages/aichat-client/tests"]

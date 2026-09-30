@@ -1,0 +1,19 @@
+[project]
+name = "aichat-client"
+version = "0.1.0"
+description = "Python client and `aichat` CLI for the aichat hub"
+requires-python = ">=3.12"
+dependencies = ["aichat-protocol", "httpx>=0.27", "typer>=0.12"]
+
+[project.scripts]
+aichat = "aichat_client.cli.main:app"
+
+[tool.uv.sources]
+aichat-protocol = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aichat_client"]
