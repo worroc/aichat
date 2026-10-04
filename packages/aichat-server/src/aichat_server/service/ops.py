@@ -34,6 +34,7 @@ class OpsService:
             out.append(
                 wire.NamespaceOut(
                     id=ns.id,
+                    title=ns.title,
                     created_at=ns.created_at,
                     identities=len(await self.store.identities.list(ns.id)),
                     rooms=len(await self.store.channels.list(ns.id, ChannelKind.ROOM)),

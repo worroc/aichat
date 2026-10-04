@@ -71,7 +71,7 @@ All POSTs that create something accept `Idempotency-Key`.
 ## Security model
 - Only token hashes are stored. The principal `(ns, name, role, kind)` comes
   only from the token.
-- The namespace id never leaves the operator API.
+- The namespace id and title never leave the operator API.
 - Hidden objects return 404. A 403 is returned only after visibility is
   established.
 - Join codes are single-use. Reuse raises an `alert` event.

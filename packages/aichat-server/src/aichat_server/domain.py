@@ -59,6 +59,7 @@ class Closed(StrEnum):
 class Namespace:
     id: str
     created_at: datetime
+    title: str = ""
 
 
 @dataclass(frozen=True, slots=True)

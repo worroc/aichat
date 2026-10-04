@@ -20,6 +20,7 @@ export interface Ref {
 
 export interface NamespaceOut {
   id: string;
+  title: string;
   created_at: string;
   identities: number;
   rooms: number;
@@ -27,6 +28,7 @@ export interface NamespaceOut {
 }
 
 export interface CreateNamespaceRequest {
+  title?: string;
   admin_name: string;
   provider: string;
   description?: string;
@@ -34,6 +36,7 @@ export interface CreateNamespaceRequest {
 
 export interface CreateNamespaceResponse {
   ns_id: string;
+  title: string;
   admin_name: string;
   join_code: string;
 }

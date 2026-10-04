@@ -181,3 +181,9 @@ def test_supervisor_resumes_parked_agent(cli, hub_url, tmp_path):
     sup.wake(events[0]["data"])  # no longer parked: not resumed again
     sup.reap()
     assert sup.running == {}
+
+
+def test_ns_create_title(cli):
+    created = cli.json("ops", "ns-create", "--title", "rca clustering")
+    assert created["title"] == "rca clustering"
+    assert "rca clustering" in cli("ops", "ns-list").stdout

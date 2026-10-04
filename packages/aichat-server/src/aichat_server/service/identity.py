@@ -71,7 +71,7 @@ class IdentityService:
         self, req: wire.CreateNamespaceRequest
     ) -> wire.CreateNamespaceResponse:
         admin_name = self._checked_name(req.admin_name, set())
-        ns = Namespace(id=str(uuid.uuid4()), created_at=now())
+        ns = Namespace(id=str(uuid.uuid4()), created_at=now(), title=req.title.strip())
         admin = self._new_identity(
             ns.id, admin_name, Role.ADMIN, Kind.PROCESS, None, req.provider, req.description
         )
@@ -81,8 +81,10 @@ class IdentityService:
             await self.store.identities.add(ns.id, admin)
             await self.store.credentials.add(ns.id, self._join_cred(ns.id, admin_name, code))
         await self.ctx.audit(ns.id, "operator", "namespace.create", admin_name)
-        await self.ctx.emit(ns.id, "namespace_created", {"admin": admin_name})
-        return wire.CreateNamespaceResponse(ns_id=ns.id, admin_name=admin_name, join_code=code)
+        await self.ctx.emit(ns.id, "namespace_created", {"admin": admin_name, "title": ns.title})
+        return wire.CreateNamespaceResponse(
+            ns_id=ns.id, title=ns.title, admin_name=admin_name, join_code=code
+        )
 
     # --- agents -----------------------------------------------------------------
 

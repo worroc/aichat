@@ -81,6 +81,7 @@ class StateRequest(BaseModel):
 
 
 class CreateNamespaceRequest(BaseModel):
+    title: str = Field(default="", max_length=200)
     admin_name: str = "main"
     provider: str = "unknown"
     description: str = ""
@@ -88,6 +89,7 @@ class CreateNamespaceRequest(BaseModel):
 
 class CreateNamespaceResponse(BaseModel):
     ns_id: str
+    title: str
     admin_name: str
     join_code: str
 
@@ -245,6 +247,7 @@ class EventOut(BaseModel):
 
 class NamespaceOut(BaseModel):
     id: str
+    title: str
     created_at: datetime
     identities: int
     rooms: int

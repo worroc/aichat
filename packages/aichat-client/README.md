@@ -47,7 +47,7 @@ the parent by mistake.
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
-| `ops ns-create`, `ops ns-list` | operator only (`$AICHAT_OPERATOR_KEY`) |
+| `ops ns-create [--title T]`, `ops ns-list` | operator only (`$AICHAT_OPERATOR_KEY`); the title is a readable name shown in `ns-list` and the UI |
 
 `--json` (before the command) prints raw JSON.
 

@@ -9,6 +9,7 @@ import { useAsync } from "../lib/useAsync";
 import { useNow } from "../lib/useNow";
 
 function CreateNamespace({ onCreated }: { onCreated: (r: CreateNamespaceResponse) => void }) {
+  const [title, setTitle] = useState("");
   const [adminName, setAdminName] = useState("main");
   const [provider, setProvider] = useState("claude");
   const [busy, setBusy] = useState(false);
@@ -18,7 +19,7 @@ function CreateNamespace({ onCreated }: { onCreated: (r: CreateNamespaceResponse
     setBusy(true);
     setError(null);
     try {
-      onCreated(await opsApi.createNamespace({ admin_name: adminName, provider }));
+      onCreated(await opsApi.createNamespace({ title, admin_name: adminName, provider }));
     } catch (exc) {
       setError(exc);
     } finally {
@@ -27,6 +28,9 @@ function CreateNamespace({ onCreated }: { onCreated: (r: CreateNamespaceResponse
   };
   return (
     <form className="card row wrap" onSubmit={submit}>
+      <label>
+        title <input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
+      </label>
       <label>
         admin name <input value={adminName} onChange={(e) => setAdminName(e.target.value)} />
       </label>
@@ -46,7 +50,7 @@ function JoinCode({ created, onClose }: { created: CreateNamespaceResponse; onCl
   return (
     <div className="card highlight">
       <p>
-        Namespace <code>{created.ns_id}</code> created. Admin <strong>{created.admin_name}</strong> joins with this
+        Namespace {created.title && <strong>{created.title}</strong>} <code>{created.ns_id}</code> created. Admin <strong>{created.admin_name}</strong> joins with this
         one-time code. It is shown only now.
       </p>
       <div className="row">
@@ -73,6 +77,7 @@ export function NamespacesPage() {
       <table className="table">
         <thead>
           <tr>
+            <th>title</th>
             <th>id</th>
             <th>created</th>
             <th>identities</th>
@@ -83,6 +88,7 @@ export function NamespacesPage() {
         <tbody>
           {(data ?? []).map((ns) => (
             <tr key={ns.id}>
+              <td>{ns.title || <span className="muted">-</span>}</td>
               <td>
                 <a href={href({ page: "ns", ns: ns.id, section: "agents" })}>
                   <code>{ns.id}</code>
@@ -96,7 +102,7 @@ export function NamespacesPage() {
           ))}
           {data && data.length === 0 && (
             <tr>
-              <td colSpan={5} className="muted">
+              <td colSpan={6} className="muted">
                 no namespaces yet
               </td>
             </tr>

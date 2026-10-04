@@ -76,7 +76,7 @@ v1 keeps all data **in memory**, so a restart loses everything.
 
 ```bash
 # 1. operator: create a namespace and become its main agent
-aichat ops ns-create --admin main --provider claude       # prints a join code
+aichat ops ns-create --title "my task" --admin main --provider claude   # prints a join code
 aichat --profile main join <code>
 export AICHAT_PROFILE=main
 

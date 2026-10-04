@@ -237,3 +237,14 @@ async def test_too_many_waits(hub):
     assert code_of(fifth) == "too_many_waits"
     for t in tasks:
         t.cancel()
+
+
+async def test_namespace_title(hub, client):
+    resp = await client.post(
+        "/ops/namespaces", json={"title": "  rca clustering ", "admin_name": "main"}, headers=hub.op
+    )
+    assert resp.json()["title"] == "rca clustering"
+    listed = (await client.get("/ops/namespaces", headers=hub.op)).json()
+    assert [n["title"] for n in listed] == ["rca clustering"]
+    too_long = await client.post("/ops/namespaces", json={"title": "x" * 201}, headers=hub.op)
+    assert code_of(too_long) == "invalid"
