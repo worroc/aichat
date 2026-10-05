@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLive } from "../lib/live";
 import { clockTime } from "../lib/time";
+import { useResizable } from "../lib/useResizable";
 
 const SHOWN = 80;
 
@@ -9,9 +10,19 @@ export function EventLog({ ns }: { ns?: string }) {
   const { events, status, statusDetail } = useLive();
   const [open, setOpen] = useState(true);
   const [onlyNs, setOnlyNs] = useState(true);
+  const { width, onPointerDown } = useResizable({ storageKey: "aichat.eventLogWidth", initial: 340, min: 220, maxShare: 0.7 });
   const shown = events.filter((e) => !ns || !onlyNs || e.ns === ns).slice(-SHOWN).reverse();
   return (
-    <aside className={`event-log ${open ? "open" : "closed"}`}>
+    <aside className={`event-log ${open ? "open" : "closed"}`} style={open ? { width } : undefined}>
+      {open && (
+        <div
+          className="resize-handle"
+          role="separator"
+          aria-orientation="vertical"
+          title="Drag to resize"
+          onPointerDown={onPointerDown}
+        />
+      )}
       <header>
         <button className="link" onClick={() => setOpen(!open)}>
           {open ? "Hide" : "Show"} events

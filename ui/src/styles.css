@@ -495,13 +495,30 @@ button.small,
 /* --- event log --------------------------------------------------------- */
 
 .event-log {
+  position: relative;
   border-left: 1px solid var(--border);
   background: var(--panel);
   overflow-y: auto;
   font-size: 0.82em;
 }
-.event-log.open {
-  width: 340px;
+.resize-handle {
+  position: sticky;
+  float: left;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  margin-right: -6px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.resize-handle:hover,
+body.resizing .resize-handle {
+  background: var(--accent);
+  opacity: 0.4;
+}
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 .event-log header {
   display: flex;
@@ -557,7 +574,10 @@ button.small,
     grid-template-columns: 1fr;
   }
   .event-log.open {
-    width: auto;
+    width: auto !important;
+  }
+  .resize-handle {
+    display: none;
   }
   .channel.with-thread {
     grid-template-columns: 1fr;
