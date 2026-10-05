@@ -17,6 +17,7 @@ const REFRESH_TYPES = new Set([
   "answer_amended",
   "alert",
   "namespace_created",
+  "namespace_deleted",
   "contact_added",
   "contact_removed",
 ]);

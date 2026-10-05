@@ -3,7 +3,7 @@
 from aichat_protocol import models as wire
 
 from ..domain import ChannelKind, Event, MessageFilter, MsgKind, not_found
-from ..notify import OPS_TOPIC, events_topic
+from ..notify import OPS_TOPIC, events_topic, reader_topic
 from ..security import Principal
 from .access import label
 from .context import Ctx
@@ -42,6 +42,23 @@ class OpsService:
                 )
             )
         return out
+
+    async def delete_namespace(self, ns_id: str) -> None:
+        """Remove the namespace with all its agents, rooms, messages and tokens."""
+        namespace = await self.store.namespaces.get(ns_id)
+        if namespace is None:
+            raise not_found("namespace")
+        names = {i.name for i in await self.store.identities.list(ns_id)}
+        async with self.store.tx():
+            await self.store.delete_namespace(ns_id)
+        await self.ctx.emit(None, "namespace_deleted", {"ns": ns_id, "title": namespace.title})
+        await self._wake_deleted(ns_id, names)
+
+    async def _wake_deleted(self, ns_id: str, names: set[str]) -> None:
+        """Running waits re-probe at once and fail auth instead of idling to timeout."""
+        for name in names:
+            await self.ctx.notifier.publish(reader_topic(ns_id, name))
+        await self.ctx.notifier.publish(events_topic(ns_id))
 
     async def identities(self, ns_id: str) -> list[wire.OpsIdentityOut]:
         ns = await self._ns(ns_id)

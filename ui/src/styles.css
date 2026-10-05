@@ -112,6 +112,9 @@ button.link {
   color: var(--accent);
   padding: 0;
 }
+button.danger {
+  background: var(--danger);
+}
 button.small,
 .small {
   font-size: 0.85em;

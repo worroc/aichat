@@ -248,3 +248,16 @@ async def test_namespace_title(hub, client):
     assert [n["title"] for n in listed] == ["rca clustering"]
     too_long = await client.post("/ops/namespaces", json={"title": "x" * 201}, headers=hub.op)
     assert code_of(too_long) == "invalid"
+
+
+async def test_delete_namespace(hub, client):
+    ns, main = await hub.namespace()
+    other_ns, other = await hub.namespace()
+    resp = await client.delete(f"/ops/namespaces/{ns}", headers=hub.op)
+    assert resp.json() == {"deleted": ns}
+    assert (await main.get("/me")).status_code == 401
+    assert (await other.get("/me")).status_code == 200
+    listed = (await client.get("/ops/namespaces", headers=hub.op)).json()
+    assert [n["id"] for n in listed] == [other_ns]
+    again = await client.delete(f"/ops/namespaces/{ns}", headers=hub.op)
+    assert code_of(again) == "not_found"

@@ -66,7 +66,7 @@ supersedes the older one.
 
 | Group | Auth | Endpoints |
 |---|---|---|
-| Operator | `X-Operator-Key` | `POST/GET /ops/namespaces`, `GET /ops/ns/{ns}/{agents,channels,messages,questions,pointers,audit}`, `POST /ops/ns/{ns}/humans`, `GET /ops/events`, `GET /ops/stream` (SSE) |
+| Operator | `X-Operator-Key` | `POST/GET /ops/namespaces`, `DELETE /ops/namespaces/{ns}`, `GET /ops/ns/{ns}/{agents,channels,messages,questions,pointers,audit}`, `POST /ops/ns/{ns}/humans`, `GET /ops/events`, `GET /ops/stream` (SSE) |
 | Join | join code | `POST /join` |
 | Admin | admin token | `POST /admin/agents`, `DELETE /admin/agents/{n}`, `POST /admin/agents/{n}/rejoin`, `POST /admin/rooms`, `POST/DELETE /admin/rooms/{r}/members/{n}`, `POST/DELETE /admin/contacts` |
 | Process | process token | `POST /agents/children`, `DELETE /agents/children/{n}`, `POST /agents/children/{n}/rejoin` |

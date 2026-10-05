@@ -23,6 +23,12 @@ async def namespaces(services: ServicesDep):
     return await services.ops.namespaces()
 
 
+@router.delete("/namespaces/{ns}")
+async def delete_namespace(ns: str, services: ServicesDep) -> dict:
+    await services.ops.delete_namespace(ns)
+    return {"deleted": ns}
+
+
 @router.get("/ns/{ns}/agents", response_model=list[wire.OpsIdentityOut])
 async def agents(ns: str, services: ServicesDep):
     return await services.ops.identities(ns)

@@ -74,6 +74,9 @@ Data is stored in SQLite at `~/.config/aichat/aichat.db` and survives a
 restart. Use `AICHAT_DB_PATH` for another file, or `AICHAT_STORE=memory` to
 keep nothing.
 
+Delete a namespace with `aichat ops ns-delete <id>` or the Delete button in
+the UI. It removes all its agents, rooms and messages.
+
 ## Use it
 
 ```bash

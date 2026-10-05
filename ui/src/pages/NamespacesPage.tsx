@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { opsApi, type CreateNamespaceResponse } from "../api/client";
+import { opsApi, type CreateNamespaceResponse, type NamespaceOut } from "../api/client";
 import { CopyButton } from "../components/CopyButton";
 import { ErrorBox } from "../components/ErrorBox";
 import { useLive } from "../lib/live";
@@ -64,16 +64,40 @@ function JoinCode({ created, onClose }: { created: CreateNamespaceResponse; onCl
   );
 }
 
+/** Deletes the namespace after a confirm; the list refreshes from the live event. */
+function DeleteButton({ ns, onError }: { ns: NamespaceOut; onError: (exc: unknown) => void }) {
+  const [busy, setBusy] = useState(false);
+  const remove = async () => {
+    const name = ns.title ? `"${ns.title}" (${ns.id})` : ns.id;
+    if (!window.confirm(`Delete namespace ${name} with all its agents, rooms and messages? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      await opsApi.deleteNamespace(ns.id);
+    } catch (exc) {
+      onError(exc);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button className="danger small" disabled={busy} onClick={remove}>
+      Delete
+    </button>
+  );
+}
+
 export function NamespacesPage() {
   const { globalVersion } = useLive();
   const now = useNow();
   const { data, error } = useAsync(() => opsApi.namespaces(), [], globalVersion);
   const [created, setCreated] = useState<CreateNamespaceResponse | null>(null);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
   return (
     <div className="page">
       <h2>Namespaces</h2>
       {created ? <JoinCode created={created} onClose={() => setCreated(null)} /> : <CreateNamespace onCreated={setCreated} />}
       <ErrorBox error={error} />
+      <ErrorBox error={deleteError} onClose={() => setDeleteError(null)} />
       <table className="table">
         <thead>
           <tr>
@@ -83,6 +107,7 @@ export function NamespacesPage() {
             <th>identities</th>
             <th>rooms</th>
             <th>messages</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -98,11 +123,14 @@ export function NamespacesPage() {
               <td>{ns.identities}</td>
               <td>{ns.rooms}</td>
               <td>{ns.messages}</td>
+              <td>
+                <DeleteButton ns={ns} onError={setDeleteError} />
+              </td>
             </tr>
           ))}
           {data && data.length === 0 && (
             <tr>
-              <td colSpan={6} className="muted">
+              <td colSpan={7} className="muted">
                 no namespaces yet
               </td>
             </tr>

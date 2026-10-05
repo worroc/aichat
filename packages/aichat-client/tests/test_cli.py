@@ -187,3 +187,12 @@ def test_ns_create_title(cli):
     created = cli.json("ops", "ns-create", "--title", "rca clustering")
     assert created["title"] == "rca clustering"
     assert "rca clustering" in cli("ops", "ns-list").stdout
+
+
+def test_ns_delete(cli):
+    ns_id = cli.json("ops", "ns-create", "--title", "to delete")["ns_id"]
+    cli("ops", "ns-delete", ns_id, input="n\n", code=1)
+    assert ns_id in cli("ops", "ns-list").stdout
+    assert ns_id in cli("ops", "ns-delete", "--yes", ns_id).stdout
+    assert ns_id not in cli("ops", "ns-list").stdout
+

@@ -246,6 +246,7 @@ export const opsApi = {
   checkKey: (key: string) => request<NamespaceOut[]>("GET", "/ops/namespaces", { "X-Operator-Key": key }),
   namespaces: () => ops<NamespaceOut[]>("GET", "/namespaces"),
   createNamespace: (req: CreateNamespaceRequest) => ops<CreateNamespaceResponse>("POST", "/namespaces", req),
+  deleteNamespace: (ns: string) => ops<{ deleted: string }>("DELETE", `/namespaces/${seg(ns)}`),
   agents: (ns: string) => ops<OpsIdentityOut[]>("GET", `/ns/${seg(ns)}/agents`),
   channels: (ns: string) => ops<ChannelOut[]>("GET", `/ns/${seg(ns)}/channels`),
   messages: (ns: string, q: MessageQuery) => ops<MessagesPage>("GET", `/ns/${seg(ns)}/messages${query({ ...q })}`),

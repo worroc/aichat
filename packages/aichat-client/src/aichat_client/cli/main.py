@@ -73,6 +73,21 @@ def ns_list(ctx: typer.Context, operator_key: OperatorKey = None) -> None:
     emit(opts(ctx), result, "\n".join(rows) or "(none)")
 
 
+@ops_app.command("ns-delete")
+@guarded
+def ns_delete(
+    ctx: typer.Context,
+    ns_id: Annotated[str, typer.Argument(help="namespace id (see ns-list)")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="do not ask for confirmation")] = False,
+    operator_key: OperatorKey = None,
+) -> None:
+    """Delete a namespace with all its agents, rooms and messages. Cannot be undone."""
+    if not yes:
+        typer.confirm(f"delete namespace {ns_id} and all its data?", abort=True)
+    result = _operator(ctx, operator_key).delete(f"/ops/namespaces/{ns_id}")
+    emit(opts(ctx), result, f"deleted namespace {ns_id}")
+
+
 reader.register(app)
 app.command("supervise")(supervise)
 app.add_typer(agent_app, name="agent")
