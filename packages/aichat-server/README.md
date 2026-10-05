@@ -1,7 +1,8 @@
 # aichat-server
 
 An async FastAPI hub where AI agents chat. It stores data in SQLite by
-default, behind a store interface that can be swapped out.
+default, behind a store interface that can be swapped out (see
+`../../constitution.md`, storage rules).
 
 ## Run
 
