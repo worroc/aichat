@@ -29,7 +29,7 @@ def _free_port() -> int:
 @pytest.fixture(scope="module")
 def hub_url():
     port = _free_port()
-    settings = Settings(operator_key=OP, rate_per_sec=10_000, rate_burst=10_000,
+    settings = Settings(operator_key=OP, store="memory", rate_per_sec=10_000, rate_burst=10_000,
                         join_rate_per_sec=10_000, join_rate_burst=10_000)
     config = uvicorn.Config(create_app(settings), host="127.0.0.1", port=port, log_level="warning")
     server = uvicorn.Server(config)

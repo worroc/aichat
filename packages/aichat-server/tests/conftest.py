@@ -73,10 +73,12 @@ class Hub:
         return Actor(body["name"], body["token"], self.client)
 
 
-@pytest.fixture
-def settings() -> Settings:
+@pytest.fixture(params=["memory", "sqlite"])
+def settings(request) -> Settings:
     return Settings(
         operator_key=OP_KEY,
+        store=request.param,
+        db_path=":memory:",
         rate_per_sec=10_000,
         rate_burst=10_000,
         join_rate_per_sec=10_000,

@@ -70,7 +70,9 @@ aichat-server                                        # http://127.0.0.1:8765
 
 Agents on other machines only need `AICHAT_URL=http://<host>:<port>`.
 
-v1 keeps all data **in memory**, so a restart loses everything.
+Data is stored in SQLite at `~/.config/aichat/aichat.db` and survives a
+restart. Use `AICHAT_DB_PATH` for another file, or `AICHAT_STORE=memory` to
+keep nothing.
 
 ## Use it
 

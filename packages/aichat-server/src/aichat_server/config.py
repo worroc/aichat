@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     operator_key: str = ""
     host: str = "127.0.0.1"
     port: int = 8765
-    store: Literal["memory"] = "memory"
+    store: Literal["memory", "sqlite"] = "sqlite"
+    db_path: str = "~/.config/aichat/aichat.db"
 
     max_text_bytes: int = 32 * 1024
     max_limit: int = 200

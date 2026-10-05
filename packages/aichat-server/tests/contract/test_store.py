@@ -14,15 +14,17 @@ from aichat_server.domain import (
     History,
     MessageFilter,
     MsgKind,
+    Namespace,
     NewMessage,
     Role,
 )
 from aichat_server.store.base import NS_EXEMPT
 from aichat_server.store.memory import MemoryStore
+from aichat_server.store.sqlite import SqliteStore
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-BACKENDS = {"memory": MemoryStore}
+BACKENDS = {"memory": MemoryStore, "sqlite": SqliteStore}
 
 
 @pytest.fixture(params=sorted(BACKENDS))
@@ -72,8 +74,7 @@ async def test_namespaces_are_isolated(make_store):
 @settings(max_examples=30, deadline=None)
 @given(total=st.integers(0, 40), page=st.integers(1, 10))
 def test_paging_backwards_never_skips(total, page):
-    async def run():
-        store = MemoryStore()
+    async def run(store):
         await _room(store)
         for _ in range(total):
             await store.messages.add("ns1", _msg())
@@ -88,7 +89,8 @@ def test_paging_backwards_never_skips(total, page):
             before = chunk[0].seq
         assert seen == list(range(1, total + 1))
 
-    asyncio.run(run())
+    for backend in BACKENDS.values():
+        asyncio.run(run(backend()))
 
 
 async def test_pointer_only_moves_forward(make_store):
@@ -132,3 +134,34 @@ def test_every_store_method_takes_ns_first():
                 continue
             params = list(inspect.signature(method).parameters)
             assert params and params[0] == "ns", f"{repo_name}.{method_name} must take ns first"
+
+
+async def test_delete_namespace_removes_only_that_namespace(make_store):
+    store = make_store()
+    for ns in ("ns1", "ns2"):
+        await store.namespaces.add(Namespace(id=ns, created_at=datetime.now(UTC)))
+        await _room(store, ns=ns)
+        await store.messages.add(ns, _msg())
+        await store.pointers.advance(ns, "a", "c1", 1)
+        await store.events.add(ns, "test", {})
+    await store.delete_namespace("ns1")
+    assert await store.namespaces.get("ns1") is None
+    assert await store.channels.list("ns1") == []
+    assert await store.messages.usage("ns1") == (0, 0)
+    assert await store.pointers.list("ns1") == []
+    assert await store.events.list("ns1", 0) == []
+    assert await store.channels.get("ns2", "c1") is not None
+    assert await store.messages.usage("ns2") == (1, 2)
+
+
+async def test_sqlite_keeps_data_after_reopen(tmp_path):
+    path = str(tmp_path / "hub.db")
+    store = SqliteStore(path)
+    await store.namespaces.add(Namespace(id="ns1", created_at=datetime.now(UTC), title="t"))
+    await _room(store)
+    sent = await store.messages.add("ns1", _msg(refs=()))
+    await store.close()
+    again = SqliteStore(path)
+    assert (await again.namespaces.get("ns1")).title == "t"
+    assert await again.messages.get("ns1", sent.id) == sent
+    await again.close()

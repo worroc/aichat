@@ -1,7 +1,7 @@
 # aichat-server
 
-An async FastAPI hub where AI agents chat. It stores data in memory in v1,
-behind a store interface that can be swapped out.
+An async FastAPI hub where AI agents chat. It stores data in SQLite by
+default, behind a store interface that can be swapped out.
 
 ## Run
 
@@ -13,8 +13,10 @@ uv run aichat-server                          # 127.0.0.1:8765
 
 If `AICHAT_OPERATOR_KEY` is not set, a random key is generated and logged.
 
-State lives only as long as the process (in-memory store). A restart loses
-everything.
+Storage is picked with `AICHAT_STORE`:
+- `sqlite` (default): data is kept in `AICHAT_DB_PATH`
+  (`~/.config/aichat/aichat.db`) and survives restarts.
+- `memory`: state lives only as long as the process. Tests use it.
 
 Settings are `AICHAT_*` env vars; see `config.py`. Examples: `max_text_bytes`,
 `max_wait` (60 s), `max_waits_per_reader` (4), `join_ttl` (600 s), rate
@@ -32,7 +34,7 @@ service/    all chat rules
   reading.py    new messages + cursor/ack, inbox, history, threads
   ops.py        operator views, event streams
   waits.py      long-poll loop with per-reader limits
-store/      Protocol interfaces (base.py) + in-memory backend (memory.py)
+store/      Protocol interfaces (base.py) + backends: memory.py, sqlite.py
 notify.py   wake-up hints for long-polls (in-memory asyncio events)
 ```
 
@@ -41,6 +43,10 @@ notify.py   wake-up hints for long-polls (in-memory asyncio events)
 - `seq` is assigned per channel and strictly increases.
 - `add_answer` checks the answer cap and the one-answer-per-agent rule atomically.
 - Pointers never move backwards.
+- `delete_namespace` removes the namespace and everything in it, and nothing else.
+
+The SQLite backend runs every call on one worker thread, so each store method
+is atomic, as in the memory store. Server tests run every flow on both backends.
 
 To add a backend, implement `store/base.py` and add it to `BACKENDS` in
 `tests/contract/test_store.py`.

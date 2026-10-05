@@ -57,6 +57,15 @@ class MemoryNamespaces:
     async def list(self) -> list[Namespace]:
         return sorted(self._items.values(), key=lambda n: n.created_at)
 
+    def _drop(self, ns: str) -> None:
+        self._items.pop(ns, None)
+
+
+def _drop_keys(items: dict, ns: str) -> None:
+    """Remove entries whose key is a tuple that starts with ``ns``."""
+    for key in [k for k in items if k[0] == ns]:
+        del items[key]
+
 
 class MemoryIdentities:
     def __init__(self) -> None:
@@ -79,6 +88,9 @@ class MemoryIdentities:
             raise not_found("identity")
         self._items[(ns, identity.name)] = identity
 
+    def _drop(self, ns: str) -> None:
+        _drop_keys(self._items, ns)
+
 
 class MemoryCredentials:
     def __init__(self) -> None:
@@ -98,6 +110,10 @@ class MemoryCredentials:
 
     async def list_for(self, ns: str, name: str) -> list[Credential]:
         return [c for c in self._items.values() if c.ns == ns and c.name == name]
+
+    def _drop(self, ns: str) -> None:
+        for key in [k for k, c in self._items.items() if c.ns == ns]:
+            del self._items[key]
 
 
 class MemoryContacts:
@@ -121,6 +137,9 @@ class MemoryContacts:
 
     async def are_contacts(self, ns: str, a: str, b: str) -> bool:
         return b in self._edges[ns].get(a, ())
+
+    def _drop(self, ns: str) -> None:
+        self._edges.pop(ns, None)
 
 
 class MemoryChannels:
@@ -151,6 +170,10 @@ class MemoryChannels:
             if n == ns and (kind is None or c.kind is kind)
         ]
 
+    def _drop(self, ns: str) -> None:
+        _drop_keys(self._items, ns)
+        _drop_keys(self._rooms, ns)
+
 
 class MemoryMemberships:
     def __init__(self) -> None:
@@ -171,6 +194,9 @@ class MemoryMemberships:
 
     async def list_for_member(self, ns: str, name: str) -> list[Membership]:
         return [m for (n, _, who), m in self._items.items() if n == ns and who == name]
+
+    def _drop(self, ns: str) -> None:
+        _drop_keys(self._items, ns)
 
 
 class MemoryMessages:
@@ -280,6 +306,11 @@ class MemoryMessages:
         count, size = self._usage.get(ns, [0, 0])
         return count, size
 
+    def _drop(self, ns: str) -> None:
+        for items in (self._items, self._by_channel, self._answers, self._threads):
+            _drop_keys(items, ns)
+        self._usage.pop(ns, None)
+
 
 def _matches(m: Message, flt: MessageFilter) -> bool:
     checks = (
@@ -310,6 +341,9 @@ class MemoryPointers:
     async def list(self, ns: str) -> list[tuple[str, str, int]]:
         return [(r, c, s) for (n, r, c), s in self._items.items() if n == ns]
 
+    def _drop(self, ns: str) -> None:
+        _drop_keys(self._items, ns)
+
 
 class MemoryIdempotency:
     def __init__(self) -> None:
@@ -330,6 +364,9 @@ class MemoryIdempotency:
             del self._items[key]
         return len(expired)
 
+    def _drop(self, ns: str) -> None:
+        _drop_keys(self._items, ns)
+
 
 class MemoryAudit:
     def __init__(self) -> None:
@@ -340,6 +377,9 @@ class MemoryAudit:
 
     async def list(self, ns: str, limit: int = 200) -> list[AuditEntry]:
         return self._items.get(ns, [])[-limit:]
+
+    def _drop(self, ns: str) -> None:
+        self._items.pop(ns, None)
 
 
 class MemoryEvents:
@@ -362,6 +402,10 @@ class MemoryEvents:
         start = bisect.bisect_right(self._seqs, after_seq)
         return self._items[start : start + limit]
 
+    def _drop(self, ns: str) -> None:
+        self._items = [e for e in self._items if e.ns != ns]
+        self._seqs = [e.seq for e in self._items]
+
 
 class MemoryStore:
     def __init__(self) -> None:
@@ -383,6 +427,15 @@ class MemoryStore:
 
     async def close(self) -> None:
         return None
+
+    async def delete_namespace(self, ns: str) -> None:
+        repos = (
+            self.identities, self.credentials, self.contacts, self.channels, self.memberships,
+            self.messages, self.pointers, self.idempotency, self.audit, self.events,
+            self.namespaces,
+        )
+        for repo in repos:
+            repo._drop(ns)
 
     @asynccontextmanager
     async def tx(self) -> AsyncIterator[None]:
