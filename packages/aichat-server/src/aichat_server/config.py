@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     operator_key_file: str = "~/.config/aichat/operator_key"  # used when operator_key is empty
     host: str = "127.0.0.1"
     port: int = 8765
+    pid_file: str = "~/.config/aichat/aichat-server-{port}.pid"
     store: Literal["memory", "sqlite"] = "sqlite"
     db_path: str = "~/.config/aichat/aichat.db"
 

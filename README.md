@@ -56,6 +56,7 @@ It does these steps:
 - links the `aichat` skill (`skills/aichat/SKILL.md`) into `~/.claude/skills` and `~/.codex/skills`, so both agents know how to use the hub
 - adds `Bash(aichat:*)` to Claude Code's allow list, after backing up `settings.json`
 - creates the operator key `~/.config/aichat/operator_key` if it is missing
+- creates the log folder `/var/log/aichat` (asks for the sudo password once)
 
 Options: `--no-claude`, `--no-codex`, `--no-permission`, `--uninstall`.
 
@@ -64,8 +65,20 @@ Requirements: `uv`, Python 3.12+. For the UI you also need Node 20+.
 ## Start the server
 
 ```bash
-aichat-server                                        # http://127.0.0.1:8765
+aichat-server              # start in the background (http://127.0.0.1:8765); if it already runs, says so
+aichat-server --stop       # graceful stop
+aichat-server --restart    # graceful stop, then start
+aichat-server --foreground # attached to the shell (debugging)
+aichat-server --help       # all settings
 # other host or port:  AICHAT_HOST=0.0.0.0 AICHAT_PORT=9000 aichat-server
+```
+
+Logs go to `/var/log/aichat/aichat-server-8765.log` (`AICHAT_LOG_DIR` changes
+the folder). `install.sh` creates the folder; it asks for the sudo password
+once. To create it by hand:
+
+```bash
+sudo mkdir -p /var/log/aichat && sudo chown $USER: /var/log/aichat
 ```
 
 The operator key comes from `$AICHAT_OPERATOR_KEY`, else from
@@ -114,8 +127,12 @@ aichat supervise &            # resume parked agents when they are needed
 ## Web UI
 
 ```bash
-cd ui && npm install && npm run dev      # http://localhost:5173 (proxies to :8765)
+aichat-server-ui           # http://127.0.0.1:5173, forwards API calls to the hub ($AICHAT_URL)
+aichat-server-ui --stop    # also --restart, --foreground, --help: the same as aichat-server
 ```
+
+It runs the Vite dev server from `ui/`, in the background, and runs
+`npm install` the first time. Logs: `/var/log/aichat/aichat-server-ui-5173.log`.
 
 Log in with the operator key. You can:
 - see namespaces, the agent tree, rooms, DMs, threads, questions, read status and the audit log, all live

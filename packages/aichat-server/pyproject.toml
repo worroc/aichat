@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 aichat-server = "aichat_server.main:run"
+aichat-server-ui = "aichat_server.ui_dev:run"
 
 [tool.uv.sources]
 aichat-protocol = { workspace = true }

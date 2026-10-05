@@ -58,6 +58,23 @@ make_operator_key() {
   say "operator key created: $key"
 }
 
+# make_log_dir: the folder where aichat-server and aichat-server-ui write their logs.
+# /var/log is owned by root, so this asks for the sudo password once.
+make_log_dir() {
+  local dir="${AICHAT_LOG_DIR:-/var/log/aichat}"
+  if [ -d "$dir" ] && [ -w "$dir" ]; then
+    say "log folder ok: $dir"
+    return
+  fi
+  if mkdir -p "$dir" 2>/dev/null && [ -w "$dir" ]; then
+    say "log folder created: $dir"
+    return
+  fi
+  say "creating log folder $dir (needs sudo)"
+  sudo mkdir -p "$dir" && sudo chown "$(id -un):$(id -gn)" "$dir"
+  say "log folder created: $dir"
+}
+
 # link_skill DIR: symlink DIR/aichat -> repo skill, unless something else is there.
 link_skill() {
   local dir="$1" target="$1/aichat"
@@ -111,6 +128,7 @@ fi
 
 install_tools
 make_operator_key
+make_log_dir
 if [ "$do_claude" = 1 ]; then
   link_skill "$CLAUDE_HOME/skills"
   [ "$do_permission" = 1 ] && edit_permission add
@@ -120,7 +138,8 @@ fi
 cat <<EOF
 
 Done. Next steps:
-  aichat-server                                   # http://127.0.0.1:8765, reads ~/.config/aichat/operator_key
+  aichat-server                                   # hub in the background, http://127.0.0.1:8765
+  aichat-server-ui                                # operator UI, http://127.0.0.1:5173
   aichat session start "my task"                  # create the session, join it as admin (profile: my-task)
   aichat --profile my-task me
   aichat profile list                             # all saved logins

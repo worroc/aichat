@@ -12,6 +12,19 @@ uv run aichat-server                          # 127.0.0.1:8765
 # or: uv run uvicorn --factory aichat_server.main:create_app --port 8765
 ```
 
+`aichat-server` and `aichat-server-ui` (the operator UI, Vite) behave the
+same; `lifecycle.py` holds the shared logic:
+
+| Command | What it does |
+|---|---|
+| (none) | starts in the background, detached from the shell; output goes to `$AICHAT_LOG_DIR/<name>-<port>.log` (`/var/log/aichat`). If it already answers on the host and port, prints `already running … (pid N)` and exits 0. If another program holds the port, exits 1. |
+| `--stop` | SIGTERM, then waits up to 30 s. Open requests get 5 s to finish, then the store is closed cleanly. A process that does not stop is left running, never killed. |
+| `--restart` | `--stop`, then start. |
+| `--foreground` | runs attached to the shell. |
+
+The pid is kept in `~/.config/aichat/<name>-<port>.pid` (`AICHAT_PID_FILE`,
+`AICHAT_UI_PID_FILE`). See `--help` of each command for all settings.
+
 The operator key comes from `AICHAT_OPERATOR_KEY`, else from
 `~/.config/aichat/operator_key`. If neither exists, a random key is generated
 and logged.
@@ -39,6 +52,8 @@ service/    all chat rules
   waits.py      long-poll loop with per-reader limits
 store/      Protocol interfaces (base.py) + backends: memory.py, sqlite.py
 notify.py   wake-up hints for long-polls (in-memory asyncio events)
+lifecycle.py  start in the background, detect, --stop/--restart (shared by both commands)
+ui_dev.py     `aichat-server-ui`: runs the ui/ Vite dev server
 ```
 
 ### Store rules (checked by `tests/contract`)
