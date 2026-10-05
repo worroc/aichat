@@ -1,15 +1,14 @@
 """The `aichat` command line."""
 
-import os
 from typing import Annotated
 
 import typer
 
 from ..http import HubClient
-from ..profile import resolve
 from . import reader
 from .admin import agent_app, contact_app, room_app
-from .common import Options, emit, fail, guarded, opts
+from .common import Options, emit, guarded, operator_client, opts
+from .session import profile_app, session_app
 from .supervise import supervise
 
 app = typer.Typer(
@@ -32,11 +31,7 @@ def main(
 
 
 def _operator(ctx: typer.Context, key: str | None) -> HubClient:
-    key = key or os.environ.get("AICHAT_OPERATOR_KEY")
-    if not key:
-        fail("operator key required: --operator-key or $AICHAT_OPERATOR_KEY")
-    o = opts(ctx)
-    return HubClient(resolve(o.url, None, None).url, operator_key=key)
+    return operator_client(opts(ctx), key)
 
 
 OperatorKey = Annotated[str | None, typer.Option("--operator-key")]
@@ -47,17 +42,20 @@ OperatorKey = Annotated[str | None, typer.Option("--operator-key")]
 def ns_create(
     ctx: typer.Context,
     title: Annotated[str, typer.Option("--title", help="readable name of the namespace")] = "",
-    admin: Annotated[str, typer.Option("--admin", help="admin agent name")] = "main",
+    root_agent_name: Annotated[
+        str,
+        typer.Option("--root-agent-name", help="chat name of the first agent; it becomes the admin"),
+    ] = "main",
     provider: Annotated[str, typer.Option("--provider")] = "unknown",
     operator_key: OperatorKey = None,
 ) -> None:
     """Create a namespace; print the admin's one-time join code."""
     result = _operator(ctx, operator_key).post(
-        "/ops/namespaces", {"title": title, "admin_name": admin, "provider": provider}
+        "/ops/namespaces", {"title": title, "admin_name": root_agent_name, "provider": provider}
     )
     emit(
         opts(ctx), result,
-        f"namespace {result['ns_id']}  {result['title'] or '-'}\nadmin {result['admin_name']} join code: {result['join_code']}",
+        f"namespace {result['ns_id']}  {result['title'] or '-'}\nroot agent {result['admin_name']} join code: {result['join_code']}",
     )
 
 
@@ -94,3 +92,5 @@ app.add_typer(agent_app, name="agent")
 app.add_typer(room_app, name="room")
 app.add_typer(contact_app, name="contact")
 app.add_typer(ops_app, name="ops")
+app.add_typer(session_app, name="session")
+app.add_typer(profile_app, name="profile")

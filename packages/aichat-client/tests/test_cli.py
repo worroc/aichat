@@ -10,6 +10,7 @@ import uvicorn
 from aichat_client import envelope
 from aichat_client.cli.common import parse_ref
 from aichat_client.cli.main import app
+from aichat_client.cli.session import slug
 from aichat_client.cli.supervise import Supervisor, build_argv, latest_seq
 from aichat_client.http import HubClient
 from aichat_client.profile import load_profile
@@ -64,7 +65,7 @@ def cli(hub_url, tmp_path, monkeypatch):
 
 
 def _admin(cli) -> None:
-    created = cli.json("ops", "ns-create", "--admin", "main")
+    created = cli.json("ops", "ns-create", "--root-agent-name", "main")
     cli("--profile", "main", "join", created["join_code"])
 
 
@@ -196,3 +197,30 @@ def test_ns_delete(cli):
     assert ns_id in cli("ops", "ns-delete", "--yes", ns_id).stdout
     assert ns_id not in cli("ops", "ns-list").stdout
 
+
+def test_session_start_is_idempotent(cli):
+    first = cli.json("session", "start", "Demo: cluster RCA!", "--provider", "claude")
+    assert first == {"title": "Demo: cluster RCA!", "profile": "demo-cluster-rca", "name": "main", "reused": False}
+    again = cli.json("session", "start", "Demo: cluster RCA!")
+    assert again["reused"] and again["profile"] == "demo-cluster-rca"
+    assert cli.json("--profile", "demo-cluster-rca", "me")["role"] == "admin"
+    listed = cli.json("profile", "list")
+    assert [(p["profile"], p["agent"], p["status"]) for p in listed] == [("demo-cluster-rca", "main", "ok")]
+
+
+def test_session_start_refuses_title_without_login(cli):
+    cli("--profile", "one", "session", "start", "shared title")
+    result = cli("--profile", "two", "session", "start", "shared title", code=1)
+    assert "cannot log in" in result.output
+
+
+def test_operator_key_from_file(cli, tmp_path, monkeypatch):
+    monkeypatch.delenv("AICHAT_OPERATOR_KEY")
+    assert "operator key required" in cli("ops", "ns-list", code=1).output
+    (tmp_path / "operator_key").write_text(OP + "\n")
+    cli("ops", "ns-list")
+
+
+def test_slug():
+    assert slug("Shop API: fix login bug!") == "shop-api-fix-login-bug"
+    assert slug("***") == ""

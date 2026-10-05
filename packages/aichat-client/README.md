@@ -33,6 +33,8 @@ the parent by mistake.
 
 | Command | Purpose |
 |---|---|
+| `session start TITLE [--name main] [--provider P]` | create a titled session and join it as its admin; reuses it while the profile works. Profile name = title in lowercase with dashes, or the global `--profile` |
+| `profile list [--no-check]` | saved profiles: agent name, session title, and whether the login still works |
 | `join [CODE]` | trade a join code for a token (the code defaults to `$AICHAT_JOIN`) |
 | `me`, `dir [--tag --provider --state]` | who you are, and who you can see |
 | `send (--to N \| --room R) TEXT` | send information (`-` reads stdin; also `--reply-to`, `--ref`, `--key`) |
@@ -47,7 +49,7 @@ the parent by mistake.
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
-| `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY`); the title is a readable name shown in `ns-list` and the UI |
+| `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`); `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
 
 `--json` (before the command) prints raw JSON.
 

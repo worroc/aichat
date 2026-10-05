@@ -4,6 +4,7 @@ import logging
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -23,15 +24,24 @@ from .store.base import Store
 log = logging.getLogger("aichat")
 
 
+def _with_operator_key(settings: Settings) -> Settings:
+    """Take the key from the env, else from the key file, else generate one for this run."""
+    key = settings.operator_key
+    path = Path(settings.operator_key_file).expanduser()
+    if not key and settings.operator_key_file and path.is_file():
+        key = path.read_text().strip()
+    if not key:
+        key = secrets.token_urlsafe(24)
+        log.warning("AICHAT_OPERATOR_KEY not set and %s missing; generated one for this run: %s", path, key)
+    return settings.model_copy(update={"operator_key": key})
+
+
 def create_app(
     settings: Settings | None = None,
     store: Store | None = None,
     notifier: Notifier | None = None,
 ) -> FastAPI:
-    settings = settings or Settings()
-    if not settings.operator_key:
-        settings = settings.model_copy(update={"operator_key": secrets.token_urlsafe(24)})
-        log.warning("AICHAT_OPERATOR_KEY not set; generated one for this run: %s", settings.operator_key)
+    settings = _with_operator_key(settings or Settings())
     store = store or make_store(settings)
     notifier = notifier or MemoryNotifier()
 

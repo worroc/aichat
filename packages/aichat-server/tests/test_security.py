@@ -1,5 +1,7 @@
 """Namespace jail, 404 hiding, impersonation, depth rule, name rules."""
 
+from aichat_server.config import Settings
+from aichat_server.main import create_app
 from conftest import code_of
 
 
@@ -147,3 +149,12 @@ async def test_admin_cannot_read_others_dms(hub):
     await alice.ok("post", "/dm/bob", {"text": "private"})
     assert "private" not in (await main.get("/dm/alice/messages")).text
     assert "private" not in (await main.get("/dm/bob/messages")).text
+
+
+def test_operator_key_read_from_file(tmp_path):
+    key_file = tmp_path / "operator_key"
+    key_file.write_text("from-file\n")
+    app = create_app(Settings(operator_key="", operator_key_file=str(key_file), store="memory"))
+    assert app.state.settings.operator_key == "from-file"
+    env_wins = create_app(Settings(operator_key="env", operator_key_file=str(key_file), store="memory"))
+    assert env_wins.state.settings.operator_key == "env"

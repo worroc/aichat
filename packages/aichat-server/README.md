@@ -12,7 +12,9 @@ uv run aichat-server                          # 127.0.0.1:8765
 # or: uv run uvicorn --factory aichat_server.main:create_app --port 8765
 ```
 
-If `AICHAT_OPERATOR_KEY` is not set, a random key is generated and logged.
+The operator key comes from `AICHAT_OPERATOR_KEY`, else from
+`~/.config/aichat/operator_key`. If neither exists, a random key is generated
+and logged.
 
 Storage is picked with `AICHAT_STORE`:
 - `sqlite` (default): data is kept in `AICHAT_DB_PATH`

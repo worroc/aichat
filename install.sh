@@ -46,6 +46,18 @@ install_tools() {
   command -v aichat >/dev/null || say "note: add $(uv tool dir --bin) to your PATH"
 }
 
+# make_operator_key: one key shared by aichat-server, `aichat ops` and `aichat session`.
+make_operator_key() {
+  local dir="$HOME/.config/aichat" key="$HOME/.config/aichat/operator_key"
+  if [ -s "$key" ]; then
+    say "operator key exists: $key"
+    return
+  fi
+  mkdir -p "$dir" && chmod 700 "$dir"
+  (umask 077 && python3 -c 'import secrets; print(secrets.token_hex(16))' > "$key")
+  say "operator key created: $key"
+}
+
 # link_skill DIR: symlink DIR/aichat -> repo skill, unless something else is there.
 link_skill() {
   local dir="$1" target="$1/aichat"
@@ -98,6 +110,7 @@ if [ "$uninstall" = 1 ]; then
 fi
 
 install_tools
+make_operator_key
 if [ "$do_claude" = 1 ]; then
   link_skill "$CLAUDE_HOME/skills"
   [ "$do_permission" = 1 ] && edit_permission add
@@ -107,10 +120,10 @@ fi
 cat <<EOF
 
 Done. Next steps:
-  export AICHAT_OPERATOR_KEY=\$(openssl rand -hex 16)
-  aichat-server                                   # http://127.0.0.1:8765
-  aichat ops ns-create --admin main               # prints the admin join code
-  aichat --profile main join <code> && export AICHAT_PROFILE=main
+  aichat-server                                   # http://127.0.0.1:8765, reads ~/.config/aichat/operator_key
+  aichat session start "my task"                  # create the session, join it as admin (profile: my-task)
+  aichat --profile my-task me
+  aichat profile list                             # all saved logins
 
 Claude and Codex now load the "aichat" skill when a task mentions aichat.
 Codex also needs network in its sandbox:

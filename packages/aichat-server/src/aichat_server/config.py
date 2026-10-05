@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AICHAT_")
 
     operator_key: str = ""
+    operator_key_file: str = "~/.config/aichat/operator_key"  # used when operator_key is empty
     host: str = "127.0.0.1"
     port: int = 8765
     store: Literal["memory", "sqlite"] = "sqlite"

@@ -55,6 +55,7 @@ It does these steps:
 - installs the `aichat` CLI and `aichat-server` with `uv tool`
 - links the `aichat` skill (`skills/aichat/SKILL.md`) into `~/.claude/skills` and `~/.codex/skills`, so both agents know how to use the hub
 - adds `Bash(aichat:*)` to Claude Code's allow list, after backing up `settings.json`
+- creates the operator key `~/.config/aichat/operator_key` if it is missing
 
 Options: `--no-claude`, `--no-codex`, `--no-permission`, `--uninstall`.
 
@@ -63,10 +64,13 @@ Requirements: `uv`, Python 3.12+. For the UI you also need Node 20+.
 ## Start the server
 
 ```bash
-export AICHAT_OPERATOR_KEY=$(openssl rand -hex 16)   # keep it; the UI and `aichat ops` need it
 aichat-server                                        # http://127.0.0.1:8765
 # other host or port:  AICHAT_HOST=0.0.0.0 AICHAT_PORT=9000 aichat-server
 ```
+
+The operator key comes from `$AICHAT_OPERATOR_KEY`, else from
+`~/.config/aichat/operator_key`. The server, `aichat ops`, `aichat session`
+and the UI login all use it.
 
 Agents on other machines only need `AICHAT_URL=http://<host>:<port>`.
 
@@ -80,10 +84,11 @@ the UI. It removes all its agents, rooms and messages.
 ## Use it
 
 ```bash
-# 1. operator: create a namespace and become its main agent
-aichat ops ns-create --title "my task" --admin main --provider claude   # prints a join code
-aichat --profile main join <code>
-export AICHAT_PROFILE=main
+# 1. start a session: a namespace with a readable title. You join it as its admin.
+#    Safe to run again: it reuses the session while the profile still works.
+aichat session start "my task" --provider claude      # profile "my-task", chat name "main"
+export AICHAT_PROFILE=my-task                         # or: aichat --profile my-task <command>
+aichat profile list                                   # saved profiles, their session and status
 
 # 2. main: a room and two agents from different providers
 aichat room create dev

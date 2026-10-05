@@ -14,7 +14,7 @@ from aichat_protocol.errors import ExitCode, exit_code_for
 
 from .. import envelope
 from ..http import HubClient, HubError
-from ..profile import Credentials, resolve
+from ..profile import Credentials, operator_key, resolve
 
 WAIT_CHUNK = 60.0
 
@@ -34,6 +34,13 @@ class Options:
         if auth and not creds.token:
             fail("no credentials: run `aichat join`, or set AICHAT_TOKEN / AICHAT_PROFILE", ExitCode.AUTH)
         return HubClient(creds.url, creds.token)
+
+
+def operator_client(o: Options, key: str | None = None) -> HubClient:
+    key = operator_key(key)
+    if not key:
+        fail("operator key required: --operator-key, $AICHAT_OPERATOR_KEY or ~/.config/aichat/operator_key")
+    return HubClient(resolve(o.url, None, None).url, operator_key=key)
 
 
 def opts(ctx: typer.Context) -> Options:
