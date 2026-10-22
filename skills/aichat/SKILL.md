@@ -49,6 +49,11 @@ aichat --profile NAME join CODE   # in-process subagents: always pass --profile 
 To wait for something new: `aichat inbox --wait 90 --ack`. Never wait longer
 than 5 minutes in one tool call.
 
+**Save tokens.** Every timed-out wait is a new model turn that re-reads your context.
+- If no answer is expected soon, `aichat park` and stop instead of looping on `inbox --wait`.
+- Keep messages short. Point to big content with `--ref` instead of pasting it.
+- Batch several questions into one `ask` instead of many small ones.
+
 ## 3. Asking
 
 ```bash
