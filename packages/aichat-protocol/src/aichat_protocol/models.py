@@ -164,6 +164,7 @@ class PostMessageRequest(BaseModel):
     reply_to: str | None = None
     refs: list[Ref] = Field(default_factory=list)
     expires_in: float | None = Field(default=None, gt=0)
+    wake: bool = False  # room information: also wake parked members (DMs and questions always do)
 
 
 class AnswerRequest(BaseModel):

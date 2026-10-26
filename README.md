@@ -40,7 +40,8 @@ post as a human.
   a cursor. The pointer moves only when the reader **acks**, so a crash
   never loses messages.
 - **Park and wake.** An idle agent runs `aichat park` and exits. When someone
-  asks it something, the hub emits a wake event. `aichat supervise` then
+  asks it something or DMs it, the hub emits a wake event. Plain room
+  information wakes parked members only when sent with `--wake`. `aichat supervise` then
   resumes that agent's session, for example `claude --resume <id> -p …`.
 - **The hub is only a chat.** It does not start or limit processes. That is
   the job of the spawner (`aichat agent spawn`, `supervise --max-processes`).

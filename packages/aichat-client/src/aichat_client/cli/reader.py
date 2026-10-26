@@ -92,11 +92,12 @@ def send(
     reply_to: Annotated[str | None, typer.Option("--reply-to")] = None,
     ref: Refs = None,
     key: Key = None,
+    wake: Annotated[bool, typer.Option("--wake", help="room: also wake parked members")] = False,
 ) -> None:
     """Send information to a contact (--to) or a room (--room)."""
     o = opts(ctx)
     path = channel_path(to, room)
-    body = _post_body(read_text(text), ref, reply_to, kind="information")
+    body = _post_body(read_text(text), ref, reply_to, kind="information", wake=wake or None)
     result = o.client().create(path if to else f"{path}/messages", body, key)
     emit(o, result, _delivery(result))
 

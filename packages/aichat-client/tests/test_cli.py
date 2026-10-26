@@ -137,6 +137,17 @@ def test_park_and_wake_event(cli):
     assert sent["recipients"][0]["wake"] == "queued"
 
 
+def test_send_room_wake(cli):
+    _admin(cli)
+    cli("--profile", "main", "room", "create", "dev")
+    _agent(cli, "napper", "--rooms", "dev")
+    cli("--profile", "napper", "park", "--session", "sess-2")
+    quiet = cli.json("--profile", "main", "send", "--room", "dev", "fyi")
+    assert quiet["recipients"][0]["wake"] == "none"
+    loud = cli.json("--profile", "main", "send", "--room", "dev", "--wake", "please act")
+    assert loud["recipients"][0]["wake"] == "queued"
+
+
 def test_envelope_escapes_fake_headers():
     msg = {
         "id": "m1", "sender": "eve", "sender_role": "agent", "channel": "#dev",

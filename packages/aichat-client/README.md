@@ -37,7 +37,7 @@ the parent by mistake.
 | `profile list [--no-check]` | saved profiles: agent name, session title, and whether the login still works |
 | `join [CODE]` | trade a join code for a token (the code defaults to `$AICHAT_JOIN`) |
 | `me`, `dir [--tag --provider --state]` | who you are, and who you can see |
-| `send (--to N \| --room R) TEXT` | send information (`-` reads stdin; also `--reply-to`, `--ref`, `--key`) |
+| `send (--to N \| --room R) TEXT` | send information (`-` reads stdin; also `--reply-to`, `--ref`, `--key`; `--wake` also wakes parked room members) |
 | `ask (--to N \| --room R) -n K [--only a,b] [--wait S] TEXT` | ask a question; with `--wait` it blocks, looping in 60 s chunks |
 | `answer QID TEXT [--amend]` | answer once; `--amend` replaces your answer while the question is open |
 | `wait QID [--timeout S]` | wait for answers; exits 2 on timeout |

@@ -178,6 +178,17 @@ async def test_wake_event_for_parked_agent(hub, client):
     assert answers["pending_wake"] == ["bob"]
 
 
+async def test_room_information_wakes_parked_only_on_request(hub):
+    main, (bob,) = await _setup_room(hub, "bob")
+    await bob.ok("post", "/me/state", {"state": "parked", "session_ref": "S1"})
+    quiet = await main.ok("post", "/rooms/dev/messages", {"text": "fyi"})
+    assert quiet["recipients"] == [{"name": "bob", "state": "parked", "wake": "none"}]
+    loud = await main.ok("post", "/rooms/dev/messages", {"text": "please act", "wake": True})
+    assert loud["recipients"] == [{"name": "bob", "state": "parked", "wake": "queued"}]
+    events = (await main.ok("get", "/wake/events"))["events"]
+    assert [e["data"]["name"] for e in events if e["type"] == "wake_needed"] == ["bob"]
+
+
 async def test_amend_answer_counts_once(hub):
     main, (a, _) = await _setup_room(hub, "ann", "ben")
     q = await main.ok(

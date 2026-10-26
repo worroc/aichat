@@ -53,7 +53,7 @@ class MessagingService:
         answerers = to or others
         new = await self._build(p, channel, req, frozenset(to), answerers)
         message = await self._store(p, new)
-        wake = to or (others if message.kind is MsgKind.QUESTION else set())
+        wake = to or (others if message.kind is MsgKind.QUESTION or req.wake else set())
         return await self._deliver(p, channel, message, others, wake)
 
     async def post_dm(
