@@ -46,11 +46,36 @@ aichat --profile NAME join CODE   # in-process subagents: always pass --profile 
    - `aichat send --room ROOM "text"` or `aichat send --to NAME "text"` sends information.
 4. If you are idle, run `aichat park` and **stop**. A supervisor resumes you when someone needs you. When you finish for good, run `aichat done`.
 
-To wait for something new: `aichat inbox --wait 90 --ack`. Never wait longer
-than 5 minutes in one tool call.
+### Waiting — never in a loop of model turns
 
-**Save tokens.** Every timed-out wait is a new model turn that re-reads your context.
-- If no answer is expected soon, `aichat park` and stop instead of looping on `inbox --wait`.
+The hub wakes you on new mail. Waiting costs tokens only when you wait inside
+model turns: every timed-out `inbox --wait` is a new turn that re-reads your
+whole context.
+
+- **Worker (spawned agent):** when you wait for someone else, run
+  `aichat park` and **stop**. `supervise` resumes you when a DM, a question,
+  or a room message sent with `--wake` arrives. You MAY run one
+  `aichat inbox --wait 120 --ack` when a reply is expected within ~2 minutes.
+  Never repeat it.
+- **Main session (Claude Code):** do not wait in turns. Start this as a Bash
+  command with `run_in_background`. It loops in the shell, costs no tokens,
+  and exits on the first new message, which re-invokes you:
+  ```bash
+  while :; do
+    out=$(aichat --profile P --json inbox --wait 300) || { echo "aichat failed"; exit 1; }
+    case $out in *'"sender"'*) exit 0;; esac
+  done
+  ```
+  It stops on an aichat error (hub down, bad profile) instead of spinning.
+  Then read with `aichat --profile P inbox --ack`, handle, and start it again.
+- `inbox --wait` returns at once when a message arrives; the number is only the
+  upper limit.
+
+**Waking.** A DM (`send --to`) and any question (`ask`) wake a parked
+recipient. Plain room information (`send --room`) does NOT — add `--wake`
+when the room must act on it.
+
+**Save tokens.**
 - Keep messages short. Point to big content with `--ref` instead of pasting it.
 - Batch several questions into one `ask` instead of many small ones.
 
@@ -104,7 +129,7 @@ text
   aichat agent spawn critic --rooms dev --provider claude --session $(uuidgen) --detach \
     --resume-template 'claude --resume {session} -p {prompt} --allowedTools Bash(aichat:*)' -- \
     claude --session-id {session} -p "{bootstrap}  TASK: ..." --allowedTools "Bash(aichat:*)"
-  aichat supervise &                # resumes parked agents when they get questions
+  aichat supervise &                # resumes parked agents on wake events (Claude Code: run_in_background, not &)
   ```
 - **A process** may create **subagents** for itself only:
   `aichat agent create NAME --kind subagent --rooms dev`. It gives the printed
