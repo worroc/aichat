@@ -24,9 +24,17 @@ They start as hub, ui and stop in reverse. `control.py` is the command;
 | `start SERVICE --foreground` | runs one service attached to the shell. |
 | `stop` | SIGTERM, then waits up to 30 s. The hub gives open requests 5 s to finish, then closes the store cleanly. A process that does not stop is left running, never killed. |
 | `restart` | `stop`, then `start`. |
-| `status` | a table: SERVICE, STATUS (`UP`; `DOWN`; `BUSY` = another program holds the port), PID, URL, LOG. |
+| `status` | a table: SERVICE, STATUS (`UP`; `DOWN`; `BUSY` = another program holds the port), PID, VERSION, STARTED, URL, LOG. |
 
 One failing service does not stop the others; the exit code is then 1.
+
+On start, each service writes one line to its log:
+`aichat-start: pid=N version=0.1.0+d8c415a started=2026-10-28T12:41:07+02:00`.
+The version is the package version plus the git commit of the code on disk
+(`-dirty` with local changes). `start` and `status` read the line that matches
+the running pid (`startlog.py`). `status` adds `(old)` when the code on disk
+changed after the service started, and shows `?` for a service started
+another way.
 The pid is kept in `~/.config/aichat/<name>-<port>.pid` (`AICHAT_PID_FILE`,
 `AICHAT_UI_PID_FILE`). See `aichat-server --help` for all settings.
 
@@ -60,6 +68,7 @@ store/      Protocol interfaces (base.py) + backends: memory.py, sqlite.py
 notify.py   wake-up hints for long-polls (in-memory asyncio events)
 control.py    the `aichat-server` command: start/stop/restart/status [hub|ui]
 lifecycle.py  per service: start in the background, detect, graceful stop, status
+startlog.py   the version line a service writes to its log on start, read back by status
 ui_dev.py     the `ui` service: runs the ui/ Vite dev server
 ```
 

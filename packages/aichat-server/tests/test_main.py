@@ -13,6 +13,7 @@ from aichat_server.config import Settings
 from aichat_server.control import _selected
 from aichat_server.lifecycle import probe, read_pid, stop
 from aichat_server.main import create_app, hub_service
+from aichat_server.startlog import current_version
 
 
 def _free_port() -> int:
@@ -117,7 +118,7 @@ def test_detached_start_stop(tmp_path):
     started = _cli(env, "start", "hub")
     try:
         assert started.returncode == 0, started.stderr
-        assert f"started aichat-server on http://127.0.0.1:{port}" in started.stdout
+        assert f"started aichat-server {current_version()} on http://127.0.0.1:{port}" in started.stdout
         assert probe(_hub(port)) == "ours"
         assert (tmp_path / "logs" / f"aichat-server-{port}.log").read_text()  # uvicorn wrote to the log
         stopped = _cli(env, "stop", "hub")
@@ -142,14 +143,16 @@ def test_status_and_restart(tmp_path):
     env = _hub_env(tmp_path, port)
     try:
         down = _cli(env, "status").stdout.splitlines()
-        assert down[0].split() == ["SERVICE", "STATUS", "PID", "URL", "LOG"]
+        assert down[0].split() == ["SERVICE", "STATUS", "PID", "VERSION", "STARTED", "URL", "LOG"]
         assert down[1].split()[:2] == ["hub", "DOWN"] and down[2].split()[:2] == ["ui", "DOWN"]
         assert _cli(env, "restart", "hub").returncode == 0
         first = read_pid(tmp_path / f"hub-{port}.pid")
         up = _cli(env, "status", "hub").stdout.splitlines()
-        assert len(up) == 2 and up[1].split()[:3] == ["hub", "UP", str(first)]
+        assert len(up) == 2 and up[1].split()[:4] == ["hub", "UP", str(first), current_version()]
+        assert "s ago)" in up[1]
         restarted = _cli(env, "restart", "hub")
         assert f"stopping aichat-server (pid {first})" in restarted.stdout
+        assert f"started aichat-server {current_version()} on" in restarted.stdout
         assert read_pid(tmp_path / f"hub-{port}.pid") not in {None, first}
     finally:
         _cli(env, "stop", "hub")

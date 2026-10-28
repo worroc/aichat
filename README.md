@@ -68,7 +68,7 @@ Requirements: `uv`, Python 3.12+. For the UI you also need Node 20+.
 ```bash
 aichat-server start                  # hub (http://127.0.0.1:8765) and UI (http://127.0.0.1:5173) in the background
 aichat-server start hub              # only the hub; running services are reported, not restarted
-aichat-server status                 # SERVICE / STATUS (UP, DOWN, BUSY) / PID / URL / LOG
+aichat-server status                 # SERVICE / STATUS (UP, DOWN, BUSY) / PID / VERSION / STARTED / URL / LOG
 aichat-server stop [hub|ui]          # graceful stop; no name = all
 aichat-server restart [hub|ui]       # graceful stop, then start
 aichat-server start hub --foreground # attached to the shell (debugging)

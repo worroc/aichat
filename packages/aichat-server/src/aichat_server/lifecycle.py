@@ -20,7 +20,10 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+
+from . import startlog
 
 PROBE_TIMEOUT = 2.0
 STOP_TIMEOUT = 30.0
@@ -191,11 +194,14 @@ def _start_detached(svc: Service) -> None:
             list(svc.relaunch), stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True
         )
     _wait_started(svc, child)
-    print(f"started {svc.name} on {svc.url} (pid {child.pid}); logs: {svc.log_file}")
+    info = startlog.find_start(svc.log_file, child.pid)
+    version = f" {info.version}" if info else ""
+    print(f"started {svc.name}{version} on {svc.url} (pid {child.pid}); logs: {svc.log_file}")
 
 
 def _run_foreground(svc: Service, serve: Callable[[], None]) -> None:
     write_pid(svc.pid_file)
+    print(startlog.start_line(os.getpid(), startlog.current_version(), datetime.now().astimezone()), flush=True)
     signal.signal(signal.SIGTERM, exit_on_term)
     try:
         serve()
@@ -239,8 +245,10 @@ def restart(svc: Service) -> None:
 class Status:
     state: str  # "up", "down", or "busy" (another program holds the port)
     pid: int | None
+    start: startlog.StartInfo | None = None  # from the log; None if it was started another way
 
 
 def status(svc: Service) -> Status:
     state = {"ours": "up", "free": "down"}.get(probe(svc), "busy")
-    return Status(state, read_pid(svc.pid_file) if state == "up" else None)
+    pid = read_pid(svc.pid_file) if state == "up" else None
+    return Status(state, pid, startlog.find_start(svc.log_file, pid) if pid else None)

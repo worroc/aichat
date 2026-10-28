@@ -9,8 +9,9 @@ import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
-from . import lifecycle, main, ui_dev
+from . import lifecycle, main, startlog, ui_dev
 from .config import Settings
 
 HELP = """services:
@@ -33,7 +34,7 @@ settings (environment variables):
 examples:
   aichat-server start                  # hub and UI in the background; reports the ones already running
   aichat-server start hub              # only the hub
-  aichat-server status                 # table: service, status, pid, url, log
+  aichat-server status                 # table: service, status, pid, version, started, url, log
   aichat-server stop ui                # graceful stop
   aichat-server restart                # graceful stop, then start
   aichat-server start hub --foreground # attached to this shell
@@ -91,12 +92,36 @@ def _paint(text: str) -> str:
     return f"\033[{COLORS[state]}m{text}\033[0m"
 
 
+def _ago(seconds: float) -> str:
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if seconds >= size:
+            return f"{int(seconds // size)}{unit} ago"
+    return f"{int(seconds)}s ago"
+
+
+def _started(info: startlog.StartInfo | None) -> str:
+    if info is None:
+        return ""
+    now = datetime.now().astimezone()
+    when = info.started.strftime("%H:%M:%S" if info.started.date() == now.date() else "%Y-%m-%d %H:%M")
+    return f"{when} ({_ago((now - info.started).total_seconds())})"
+
+
+def _version(st: lifecycle.Status, current: str) -> str:
+    """The running version; `(old)` when the code on disk has changed since it started."""
+    if st.start is None:
+        return "?" if st.state == "up" else ""
+    return st.start.version + ("" if st.start.version == current else " (old)")
+
+
 def _status_table(entries: dict[str, Entry], names: list[str]) -> None:
-    rows = [("SERVICE", "STATUS", "PID", "URL", "LOG")]
+    current = startlog.current_version()
+    rows = [("SERVICE", "STATUS", "PID", "VERSION", "STARTED", "URL", "LOG")]
     for name in names:
         svc = entries[name].service
         st = lifecycle.status(svc)
-        rows.append((name, st.state.upper(), str(st.pid or ""), svc.url, str(svc.log_file)))
+        row = (name, st.state.upper(), str(st.pid or ""), _version(st, current), _started(st.start))
+        rows.append((*row, svc.url, str(svc.log_file)))
     widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
     for row in rows:
         cells = [cell.ljust(width) for cell, width in zip(row, widths)]
