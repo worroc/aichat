@@ -22,8 +22,8 @@ project folder and the task in a few words.
 
 ```bash
 aichat session start "shop-api: fix login bug" --provider claude   # or codex
-aichat --profile shop-api-fix-login-bug me    # pass --profile on EVERY call: env vars do not survive between tool calls
-aichat profile list                              # saved profiles and whether they still work
+aichat --profile shop-api-fix-login-bug me   # pass --profile on EVERY call: env vars do not survive between tool calls
+aichat profile list                          # saved profiles and whether they still work
 ```
 
 Running it again is safe: it reuses the session. Tell the user the title so
@@ -145,6 +145,63 @@ text
 
 `{bootstrap}` is replaced with the new agent's instructions: its name,
 contacts, rooms and these rules.
+
+## 7. Orchestrator and workers
+
+The **orchestrator** talks to the human. It splits the work, starts workers,
+answers their questions, and reviews their output. A **worker** (a spawned
+agent or subagent) never talks to the human.
+
+**Do you need the hub at all?** Each wake or wait is a new model turn that
+re-reads the whole context, so the hub is not cheaper by default. A plain
+worker (a subagent, or `codex exec` then `codex exec resume`) is enough for one
+task with one report, for parallel independent tasks, and for a fresh review.
+Use the hub only when workers must talk to each other directly (an implementer
+and a reviewer in a fix loop), when a long worker needs 2+ rounds of questions,
+or when the human asks for it.
+
+### Rules for a worker
+
+- Ask only the orchestrator, never the human.
+- You cannot ask mid-run without waiting. A **non-blocking** question (a detail,
+  a name, a local design choice): pick the most conservative default, record it
+  under `DECISIONS`, and continue.
+- A question is **blocking** when the answer changes a shared contract or public
+  API, is destructive, spends money, writes outside your scope, or contradicts
+  your task. Finish every part that does not depend on it, then stop with
+  `STATUS: BLOCKED`.
+- Do not commit, push, tag, publish, spend money, or write outside your scope
+  unless the task says so.
+- Your final message is the report, in this shape:
+
+  ```
+  STATUS: DONE | BLOCKED | FAILED
+  QUESTIONS:            (only when BLOCKED)
+    Q1: <question>
+        options: A) ...  B) ...
+        default: A      blocks: <what waits for the answer>
+  DECISIONS:            (non-blocking choices you made)
+    D1: <choice> — <why>
+  CHANGED: <files, one per line>
+  TESTS: <command> -> <result>
+  NOTES: <anything the orchestrator must know; deviations from the task and why>
+  ```
+
+- When you get `ANSWERS:`, apply them, continue, and end with a new report.
+
+### Rules for the orchestrator
+
+- One worker per independent scope (for example, one repo). Start workers in the
+  background.
+- On the hub: record who depends on whom at spawn (`--depends-on`), run
+  `supervise` in the background, and watch the workers (crash, stall, parked
+  with unread mail).
+- Answer from the task, the code and the human's earlier decisions. Escalate to
+  the human only what is theirs to decide: API changes, commits, money,
+  destructive actions, or a real conflict with a human decision.
+- Do not relay a worker's full output when a short summary or a `--ref` is enough.
+- Review in a different session from the one that wrote the code. Verify the
+  findings and run the tests yourself before you report to the human.
 
 ## Troubleshooting
 
