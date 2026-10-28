@@ -10,7 +10,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import uvicorn
 from aichat_server.config import Settings
-from aichat_server.lifecycle import probe, stop
+from aichat_server.control import _selected
+from aichat_server.lifecycle import probe, read_pid, stop
 from aichat_server.main import create_app, hub_service
 
 
@@ -62,7 +63,7 @@ def test_probe_running_hub():
         server.should_exit = True
 
 
-HUB = [sys.executable, "-m", "aichat_server.main"]
+HUB = [sys.executable, "-m", "aichat_server.control"]
 
 
 def _hub_env(tmp_path, port: int) -> dict[str, str]:
@@ -72,7 +73,10 @@ def _hub_env(tmp_path, port: int) -> dict[str, str]:
         "AICHAT_STORE": "memory",
         "AICHAT_OPERATOR_KEY": "k",
         "AICHAT_PID_FILE": str(tmp_path / "hub-{port}.pid"),
+        "AICHAT_UI_PORT": str(_free_port()),
+        "AICHAT_UI_PID_FILE": str(tmp_path / "ui-{port}.pid"),
         "AICHAT_LOG_DIR": str(tmp_path / "logs"),
+        "NO_COLOR": "1",
     }
 
 
@@ -91,10 +95,10 @@ def _wait_for(port: int, state: str) -> None:
 def test_second_start_reports_and_stop_is_graceful(tmp_path, monkeypatch):
     port = _free_port()
     env = _hub_env(tmp_path, port)
-    hub = subprocess.Popen([*HUB, "--foreground"], env=env)
+    hub = subprocess.Popen([*HUB, "start", "hub", "--foreground"], env=env)
     try:
         _wait_for(port, "ours")
-        again = _cli(env)
+        again = _cli(env, "start", "hub")
         assert again.returncode == 0
         assert f"already running on http://127.0.0.1:{port} (pid {hub.pid})" in again.stdout
         for key in ("AICHAT_PORT", "AICHAT_PID_FILE"):
@@ -110,24 +114,55 @@ def test_second_start_reports_and_stop_is_graceful(tmp_path, monkeypatch):
 def test_detached_start_stop(tmp_path):
     port = _free_port()
     env = _hub_env(tmp_path, port)
-    started = _cli(env)
+    started = _cli(env, "start", "hub")
     try:
         assert started.returncode == 0, started.stderr
         assert f"started aichat-server on http://127.0.0.1:{port}" in started.stdout
         assert probe(_hub(port)) == "ours"
         assert (tmp_path / "logs" / f"aichat-server-{port}.log").read_text()  # uvicorn wrote to the log
-        stopped = _cli(env, "--stop")
+        stopped = _cli(env, "stop", "hub")
         assert "stopped aichat-server (pid" in stopped.stdout
         assert probe(_hub(port)) == "free"
-        assert "is not running" in _cli(env, "--stop").stdout
+        assert "is not running" in _cli(env, "stop", "hub").stdout
     finally:
-        _cli(env, "--stop")
+        _cli(env, "stop", "hub")
 
 
 def test_log_dir_not_writable(tmp_path):
     locked = tmp_path / "locked"
     locked.mkdir(mode=0o500)
     env = {**_hub_env(tmp_path, _free_port()), "AICHAT_LOG_DIR": str(locked / "aichat")}
-    result = _cli(env)
+    result = _cli(env, "start", "hub")
     assert result.returncode == 1
     assert "sudo mkdir -p" in result.stderr
+
+
+def test_status_and_restart(tmp_path):
+    port = _free_port()
+    env = _hub_env(tmp_path, port)
+    try:
+        down = _cli(env, "status").stdout.splitlines()
+        assert down[0].split() == ["SERVICE", "STATUS", "PID", "URL", "LOG"]
+        assert down[1].split()[:2] == ["hub", "DOWN"] and down[2].split()[:2] == ["ui", "DOWN"]
+        assert _cli(env, "restart", "hub").returncode == 0
+        first = read_pid(tmp_path / f"hub-{port}.pid")
+        up = _cli(env, "status", "hub").stdout.splitlines()
+        assert len(up) == 2 and up[1].split()[:3] == ["hub", "UP", str(first)]
+        restarted = _cli(env, "restart", "hub")
+        assert f"stopping aichat-server (pid {first})" in restarted.stdout
+        assert read_pid(tmp_path / f"hub-{port}.pid") not in {None, first}
+    finally:
+        _cli(env, "stop", "hub")
+
+
+def test_cli_rejects_bad_names():
+    assert _cli(dict(os.environ), "start", "db").returncode == 2
+    assert "exactly one service" in _cli(dict(os.environ), "start", "--foreground").stderr
+    bare = _cli(dict(os.environ))  # no subcommand: full help, nothing starts
+    assert bare.returncode == 0 and "examples:" in bare.stdout
+
+
+def test_stop_runs_in_reverse_order():
+    assert _selected([], "start") == ["hub", "ui"]
+    assert _selected(["ui", "hub"], "stop") == ["ui", "hub"]
+    assert _selected(["ui"], "restart") == ["ui"]

@@ -1,4 +1,4 @@
-"""App factory and entry point."""
+"""App factory, and how to run the hub as a service."""
 
 import logging
 import secrets
@@ -79,22 +79,18 @@ def create_app(
     return app
 
 
-SETTINGS_HELP = """settings (environment variables):
-  AICHAT_HOST, AICHAT_PORT   where to listen (127.0.0.1, 8765)
-  AICHAT_STORE               sqlite (default, kept on disk) or memory (lost on stop)
-  AICHAT_DB_PATH             SQLite file (~/.config/aichat/aichat.db)
-  AICHAT_OPERATOR_KEY        operator key; else read from ~/.config/aichat/operator_key
-  AICHAT_PID_FILE            pid file used by --stop/--restart (~/.config/aichat/aichat-server-{port}.pid)
-  AICHAT_LOG_DIR             log folder (/var/log/aichat); log file: aichat-server-{port}.log
-  more limits: see aichat_server/config.py
-
-examples:
-  aichat-server              # start in the background, or report that it already runs
-  aichat-server --stop       # graceful stop
-  aichat-server --restart    # graceful stop, then start
-  aichat-server --foreground # attached to this shell
-"""
 GRACEFUL_SHUTDOWN = 5  # seconds open requests (long-polls, SSE) get before they are closed
+
+
+def serve(settings: Settings) -> None:
+    """Run the hub attached to this process (the foreground part of `aichat-server start hub`)."""
+    logging.basicConfig(level=logging.INFO)
+    uvicorn.run(
+        create_app(settings),
+        host=settings.host,
+        port=settings.port,
+        timeout_graceful_shutdown=GRACEFUL_SHUTDOWN,
+    )
 
 
 def hub_service(settings: Settings) -> lifecycle.Service:
@@ -106,31 +102,5 @@ def hub_service(settings: Settings) -> lifecycle.Service:
         probe_path="/health",
         is_ours=lifecycle.hub_says_ok,
         port_env="AICHAT_PORT",
-        relaunch=[sys.executable, "-m", "aichat_server.main", "--foreground"],
+        relaunch=[sys.executable, "-m", "aichat_server.control", "start", "hub", "--foreground"],
     )
-
-
-def run(argv: list[str] | None = None) -> None:
-    """Start the hub; safe to run again. ``--restart`` replaces a running hub."""
-    parser = lifecycle.command_parser(
-        "aichat-server",
-        "Run the aichat hub. If it already runs on the host and port, say so and exit.",
-        SETTINGS_HELP,
-    )
-    args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO)
-    settings = Settings()
-
-    def serve() -> None:
-        uvicorn.run(
-            create_app(settings),
-            host=settings.host,
-            port=settings.port,
-            timeout_graceful_shutdown=GRACEFUL_SHUTDOWN,
-        )
-
-    lifecycle.run_service(hub_service(settings), args, serve)
-
-
-if __name__ == "__main__":
-    run()

@@ -23,7 +23,7 @@ Dependencies point one way: server → protocol ← client (see
 ```bash
 uv sync                                   # install the workspace
 uv run pytest                             # all Python tests (server + client)
-uv run aichat-server                      # run the hub (AICHAT_OPERATOR_KEY, AICHAT_HOST, AICHAT_PORT, AICHAT_STORE, AICHAT_DB_PATH)
+uv run aichat-server start hub            # run the hub (AICHAT_OPERATOR_KEY, AICHAT_HOST, AICHAT_PORT, AICHAT_STORE, AICHAT_DB_PATH)
 cd ui && npm install && npm run build     # the UI must build with zero TS errors
 ```
 

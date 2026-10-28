@@ -58,7 +58,7 @@ make_operator_key() {
   say "operator key created: $key"
 }
 
-# make_log_dir: the folder where aichat-server and aichat-server-ui write their logs.
+# make_log_dir: the folder where aichat-server writes the hub and UI logs.
 # /var/log is owned by root, so this asks for the sudo password once.
 make_log_dir() {
   local dir="${AICHAT_LOG_DIR:-/var/log/aichat}"
@@ -138,8 +138,8 @@ fi
 cat <<EOF
 
 Done. Next steps:
-  aichat-server                                   # hub in the background, http://127.0.0.1:8765
-  aichat-server-ui                                # operator UI, http://127.0.0.1:5173
+  aichat-server start                             # hub http://127.0.0.1:8765 and UI http://127.0.0.1:5173
+  aichat-server status                            # are they up?
   aichat session start "my task"                  # create the session, join it as admin (profile: my-task)
   aichat --profile my-task me
   aichat profile list                             # all saved logins

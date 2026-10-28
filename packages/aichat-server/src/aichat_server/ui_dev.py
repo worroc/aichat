@@ -1,7 +1,6 @@
-"""`aichat-server-ui`: run the operator UI (Vite dev server) like `aichat-server`.
+"""The operator UI (Vite dev server) as a service: `aichat-server start ui`.
 
-It starts in the background, reports when it already runs, and has --stop,
---restart and --foreground. Vite forwards API calls to the hub at $AICHAT_URL.
+Vite forwards API calls to the hub at $AICHAT_URL.
 """
 
 import os
@@ -19,20 +18,6 @@ from . import lifecycle
 DEFAULT_UI_DIR = Path(__file__).resolve().parents[4] / "ui"
 UI_MARKER = b"<title>aichat operator</title>"
 STOP_CHILD_TIMEOUT = 10.0
-
-HELP = """settings (environment variables):
-  AICHAT_UI_HOST, AICHAT_UI_PORT  where the UI listens (127.0.0.1, 5173)
-  AICHAT_URL                      the hub the UI talks to (http://127.0.0.1:8765)
-  AICHAT_UI_DIR                   the ui/ folder of the aichat repo (found next to this package)
-  AICHAT_UI_PID_FILE              pid file (~/.config/aichat/aichat-server-ui-{port}.pid)
-  AICHAT_LOG_DIR                  log folder (/var/log/aichat); log file: aichat-server-ui-{port}.log
-
-examples:
-  aichat-server-ui              # start in the background, or report that it already runs
-  aichat-server-ui --stop       # graceful stop
-  aichat-server-ui --restart    # graceful stop, then start
-  aichat-server-ui --foreground # attached to this shell
-"""
 
 
 class UiSettings(BaseSettings):
@@ -65,7 +50,7 @@ def _install_deps(settings: UiSettings, log_path: Path) -> None:
         raise lifecycle.LifecycleError(f"npm install failed; see {log_path}")
 
 
-def _serve(settings: UiSettings) -> None:
+def serve(settings: UiSettings) -> None:
     """Run Vite as a child process group; stop the whole group when we are stopped."""
     argv = ["npm", "run", "dev", "--", "--host", settings.host, "--port", str(settings.port), "--strictPort"]
     child = subprocess.Popen(argv, cwd=_ui_dir(settings), start_new_session=True)
@@ -96,23 +81,7 @@ def ui_service(settings: UiSettings) -> lifecycle.Service:
         probe_path="/",
         is_ours=lambda body: UI_MARKER in body,
         port_env="AICHAT_UI_PORT",
-        relaunch=[sys.executable, "-m", "aichat_server.ui_dev", "--foreground"],
+        relaunch=[sys.executable, "-m", "aichat_server.control", "start", "ui", "--foreground"],
         start_timeout=60.0,
         before_start=lambda log_path: _install_deps(settings, log_path),
     )
-
-
-def run(argv: list[str] | None = None) -> None:
-    """Start the UI; safe to run again."""
-    parser = lifecycle.command_parser(
-        "aichat-server-ui",
-        "Run the aichat operator UI (Vite). If it already runs on the host and port, say so and exit.",
-        HELP,
-    )
-    args = parser.parse_args(argv)
-    settings = UiSettings()
-    lifecycle.run_service(ui_service(settings), args, lambda: _serve(settings))
-
-
-if __name__ == "__main__":
-    run()

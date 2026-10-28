@@ -8,22 +8,27 @@ default, behind a store interface that can be swapped out (see
 
 ```bash
 export AICHAT_OPERATOR_KEY=change-me          # required for /ops/*
-uv run aichat-server                          # 127.0.0.1:8765
+uv run aichat-server start hub                # 127.0.0.1:8765
 # or: uv run uvicorn --factory aichat_server.main:create_app --port 8765
 ```
 
-`aichat-server` and `aichat-server-ui` (the operator UI, Vite) behave the
-same; `lifecycle.py` holds the shared logic:
+`aichat-server ACTION [SERVICE ...]` manages two services: `hub` (this
+FastAPI app) and `ui` (the operator UI, Vite). No service name means both.
+They start as hub, ui and stop in reverse. `control.py` is the command;
+`lifecycle.py` holds the per-service logic.
 
-| Command | What it does |
+| Action | What it does |
 |---|---|
-| (none) | starts in the background, detached from the shell; output goes to `$AICHAT_LOG_DIR/<name>-<port>.log` (`/var/log/aichat`). If it already answers on the host and port, prints `already running … (pid N)` and exits 0. If another program holds the port, exits 1. |
-| `--stop` | SIGTERM, then waits up to 30 s. Open requests get 5 s to finish, then the store is closed cleanly. A process that does not stop is left running, never killed. |
-| `--restart` | `--stop`, then start. |
-| `--foreground` | runs attached to the shell. |
+| (none) | prints the help; nothing starts. |
+| `start` | starts in the background, detached from the shell; output goes to `$AICHAT_LOG_DIR/<name>-<port>.log` (`/var/log/aichat`). A service that already answers on its host and port is reported (`already running … (pid N)`), not restarted. If another program holds the port, exits 1. |
+| `start SERVICE --foreground` | runs one service attached to the shell. |
+| `stop` | SIGTERM, then waits up to 30 s. The hub gives open requests 5 s to finish, then closes the store cleanly. A process that does not stop is left running, never killed. |
+| `restart` | `stop`, then `start`. |
+| `status` | a table: SERVICE, STATUS (`UP`; `DOWN`; `BUSY` = another program holds the port), PID, URL, LOG. |
 
+One failing service does not stop the others; the exit code is then 1.
 The pid is kept in `~/.config/aichat/<name>-<port>.pid` (`AICHAT_PID_FILE`,
-`AICHAT_UI_PID_FILE`). See `--help` of each command for all settings.
+`AICHAT_UI_PID_FILE`). See `aichat-server --help` for all settings.
 
 The operator key comes from `AICHAT_OPERATOR_KEY`, else from
 `~/.config/aichat/operator_key`. If neither exists, a random key is generated
@@ -53,8 +58,9 @@ service/    all chat rules
   waits.py      long-poll loop with per-reader limits
 store/      Protocol interfaces (base.py) + backends: memory.py, sqlite.py
 notify.py   wake-up hints for long-polls (in-memory asyncio events)
-lifecycle.py  start in the background, detect, --stop/--restart (shared by both commands)
-ui_dev.py     `aichat-server-ui`: runs the ui/ Vite dev server
+control.py    the `aichat-server` command: start/stop/restart/status [hub|ui]
+lifecycle.py  per service: start in the background, detect, graceful stop, status
+ui_dev.py     the `ui` service: runs the ui/ Vite dev server
 ```
 
 ### Agent lifetime (`service/lifetime.py`)

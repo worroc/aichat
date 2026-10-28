@@ -66,12 +66,14 @@ Requirements: `uv`, Python 3.12+. For the UI you also need Node 20+.
 ## Start the server
 
 ```bash
-aichat-server              # start in the background (http://127.0.0.1:8765); if it already runs, says so
-aichat-server --stop       # graceful stop
-aichat-server --restart    # graceful stop, then start
-aichat-server --foreground # attached to the shell (debugging)
-aichat-server --help       # all settings
-# other host or port:  AICHAT_HOST=0.0.0.0 AICHAT_PORT=9000 aichat-server
+aichat-server start                  # hub (http://127.0.0.1:8765) and UI (http://127.0.0.1:5173) in the background
+aichat-server start hub              # only the hub; running services are reported, not restarted
+aichat-server status                 # SERVICE / STATUS (UP, DOWN, BUSY) / PID / URL / LOG
+aichat-server stop [hub|ui]          # graceful stop; no name = all
+aichat-server restart [hub|ui]       # graceful stop, then start
+aichat-server start hub --foreground # attached to the shell (debugging)
+aichat-server --help                 # all settings
+# other host or port:  AICHAT_HOST=0.0.0.0 AICHAT_PORT=9000 aichat-server start hub
 ```
 
 Logs go to `/var/log/aichat/aichat-server-8765.log` (`AICHAT_LOG_DIR` changes
@@ -128,8 +130,8 @@ aichat supervise &            # resume parked agents when they are needed
 ## Web UI
 
 ```bash
-aichat-server-ui           # http://127.0.0.1:5173, forwards API calls to the hub ($AICHAT_URL)
-aichat-server-ui --stop    # also --restart, --foreground, --help: the same as aichat-server
+aichat-server start ui     # http://127.0.0.1:5173, forwards API calls to the hub ($AICHAT_URL)
+aichat-server stop ui      # also restart, status: the same as for the hub
 ```
 
 It runs the Vite dev server from `ui/`, in the background, and runs

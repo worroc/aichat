@@ -1,22 +1,20 @@
-"""Start, detect and gracefully stop a local service: the hub or the UI.
+"""Start, detect, stop and report a local service: the hub or the UI.
 
-Both commands (``aichat-server``, ``aichat-server-ui``) behave the same:
+The `aichat-server` command (`control.py`) drives these for each service:
 
 * start: runs the service in the background, detached from the shell, with
   its output in ``$AICHAT_LOG_DIR/<name>-<port>.log`` (``/var/log/aichat``).
-  If the service already answers on its host and port, they say so and exit.
-* ``--stop``: SIGTERM, then wait until it has finished. A service that does
-  not stop is never killed.
-* ``--restart``: ``--stop``, then start.
-* ``--foreground``: run attached to the shell (debugging, systemd).
+  If the service already answers on its host and port, it says so.
+* stop: SIGTERM, then wait until it has finished. A service that does not
+  stop is never killed.
+* restart: stop, then start.
+* status: up, down, or busy (another program holds the port).
 """
 
-import argparse
 import json
 import os
 import signal
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -155,43 +153,9 @@ def describe(svc: Service) -> str:
     return f"{svc.name} is already running on {svc.url}" + (f" (pid {pid})" if pid else "")
 
 
-def prepare(svc: Service, restart: bool) -> bool:
-    """True when a new process should start; prints why not otherwise."""
-    state = probe(svc)
-    if state == "busy":
-        raise LifecycleError(f"{svc.host}:{svc.port} is used by another program; set {svc.port_env}")
-    if state == "ours" and not restart:
-        print(describe(svc))
-        return False
-    if state == "ours":
-        print(f"stopping {svc.name} (pid {stop(svc)}) ...")
-    return True
-
-
 def exit_on_term(signum: int, frame: object) -> None:
     """SIGTERM handler: exit normally, so `finally` blocks (pid file cleanup) run."""
     raise SystemExit(0)
-
-
-def command_parser(name: str, description: str, epilog: str) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog=name, description=description, epilog=epilog,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--stop", action="store_true", help="stop the running one gracefully")
-    mode.add_argument("--restart", action="store_true", help="stop the running one gracefully, then start")
-    mode.add_argument(
-        "--foreground", action="store_true", help="run attached to this shell, logging to stderr"
-    )
-    return parser
-
-
-def _stop_command(svc: Service) -> None:
-    if probe(svc) != "ours":
-        print(f"{svc.name} is not running on {svc.url}")
-        return
-    print(f"stopped {svc.name} (pid {stop(svc)})")
 
 
 def _open_log(svc: Service):
@@ -239,16 +203,44 @@ def _run_foreground(svc: Service, serve: Callable[[], None]) -> None:
         remove_pid(svc.pid_file)
 
 
-def run_service(svc: Service, args: argparse.Namespace, serve: Callable[[], None]) -> None:
-    """Shared flow of both commands: --stop, or check / maybe stop, then start."""
-    try:
-        if args.stop:
-            _stop_command(svc)
-        elif prepare(svc, args.restart):
-            if args.foreground:
-                _run_foreground(svc, serve)
-            else:
-                _start_detached(svc)
-    except LifecycleError as exc:
-        print(f"{svc.name}: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
+def _check_port(svc: Service) -> str:
+    state = probe(svc)
+    if state == "busy":
+        raise LifecycleError(f"{svc.host}:{svc.port} is used by another program; set {svc.port_env}")
+    return state
+
+
+def start(svc: Service, serve: Callable[[], None], foreground: bool = False) -> None:
+    """Start the service unless it already answers; detached unless `foreground`."""
+    if _check_port(svc) == "ours":
+        print(describe(svc))
+    elif foreground:
+        _run_foreground(svc, serve)
+    else:
+        _start_detached(svc)
+
+
+def stop_service(svc: Service) -> None:
+    """Stop the service gracefully, or say that it is not running."""
+    if probe(svc) != "ours":
+        print(f"{svc.name} is not running on {svc.url}")
+        return
+    print(f"stopped {svc.name} (pid {stop(svc)})")
+
+
+def restart(svc: Service) -> None:
+    """Stop the running service gracefully (if any), then start it detached."""
+    if _check_port(svc) == "ours":
+        print(f"stopping {svc.name} (pid {stop(svc)}) ...")
+    _start_detached(svc)
+
+
+@dataclass(frozen=True)
+class Status:
+    state: str  # "up", "down", or "busy" (another program holds the port)
+    pid: int | None
+
+
+def status(svc: Service) -> Status:
+    state = {"ours": "up", "free": "down"}.get(probe(svc), "busy")
+    return Status(state, read_pid(svc.pid_file) if state == "up" else None)
