@@ -8,6 +8,7 @@ import time
 import pytest
 import uvicorn
 from aichat_client import envelope
+from aichat_client.cli.admin import child_env
 from aichat_client.cli.common import parse_ref
 from aichat_client.cli.main import app
 from aichat_client.cli.session import slug
@@ -249,3 +250,19 @@ def test_operator_key_from_file(cli, tmp_path, monkeypatch):
 def test_slug():
     assert slug("Shop API: fix login bug!") == "shop-api-fix-login-bug"
     assert slug("***") == ""
+
+
+def test_child_env_drops_operator_key(monkeypatch):
+    monkeypatch.setenv("AICHAT_OPERATOR_KEY", OP)
+    monkeypatch.setenv("AICHAT_JOIN", "code")
+    env = child_env("bob", "http://hub", "aic_ag_x")
+    assert "AICHAT_OPERATOR_KEY" not in env and "AICHAT_JOIN" not in env
+    assert env["AICHAT_PROFILE"] == "bob" and env["AICHAT_TOKEN"] == "aic_ag_x"
+
+
+@pytest.mark.parametrize("var", ["AICHAT_PROFILE", "AICHAT_TOKEN"])
+def test_operator_commands_refused_for_agents(cli, monkeypatch, var):
+    monkeypatch.setenv(var, "bob")
+    assert f"not allowed for agents ({var} set)" in cli("ops", "ns-list", code=5).output
+    assert "not allowed for agents" in cli("session", "start", "agent try", code=5).output
+    assert "not allowed for agents" in cli("ops", "ns-list", "--operator-key", OP, code=5).output

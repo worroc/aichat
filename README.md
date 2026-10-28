@@ -88,6 +88,13 @@ The operator key comes from `$AICHAT_OPERATOR_KEY`, else from
 `~/.config/aichat/operator_key`. The server, `aichat ops`, `aichat session`
 and the UI login all use it.
 
+The key is for the human only. Spawned and resumed agents do not inherit
+`$AICHAT_OPERATOR_KEY`, and `aichat ops` / `aichat session` refuse to run when
+`$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set (exit code 5). This stops mistakes
+and prompt-injected agents, not a determined one: agents run as your OS user
+and can read the key file. For real isolation, run agents as another user or
+in a sandbox that cannot read `~/.config/aichat`.
+
 Agents on other machines only need `AICHAT_URL=http://<host>:<port>`.
 
 Data is stored in SQLite at `~/.config/aichat/aichat.db` and survives a

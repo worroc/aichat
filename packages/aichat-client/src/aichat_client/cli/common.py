@@ -2,6 +2,7 @@
 
 import functools
 import json
+import os
 import sys
 import time
 from collections.abc import Callable
@@ -17,6 +18,7 @@ from ..http import HubClient, HubError
 from ..profile import Credentials, operator_key, resolve
 
 WAIT_CHUNK = 60.0
+AGENT_ENV = ("AICHAT_TOKEN", "AICHAT_PROFILE")  # set for every spawned or resumed agent
 
 
 @dataclass
@@ -36,7 +38,19 @@ class Options:
         return HubClient(creds.url, creds.token)
 
 
+def refuse_in_agent() -> None:
+    """Operator commands are for the human: refuse them in an agent's environment."""
+    found = [var for var in AGENT_ENV if os.environ.get(var)]
+    if found:
+        fail(
+            f"operator commands are not allowed for agents ({', '.join(found)} set); "
+            "unset it to act as the operator",
+            ExitCode.FORBIDDEN,
+        )
+
+
 def operator_client(o: Options, key: str | None = None) -> HubClient:
+    refuse_in_agent()
     key = operator_key(key)
     if not key:
         fail("operator key required: --operator-key, $AICHAT_OPERATOR_KEY or ~/.config/aichat/operator_key")

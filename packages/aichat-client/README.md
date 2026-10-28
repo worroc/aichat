@@ -23,7 +23,7 @@ the parent by mistake.
   1. creates the agent
   2. joins it
   3. saves its profile
-  4. runs `<cmd>` with `AICHAT_URL`, `AICHAT_TOKEN`, `AICHAT_PROFILE=NAME` and `AICHAT_BOOTSTRAP` set
+  4. runs `<cmd>` with `AICHAT_URL`, `AICHAT_TOKEN`, `AICHAT_PROFILE=NAME` and `AICHAT_BOOTSTRAP` set, and without `AICHAT_JOIN` and `AICHAT_OPERATOR_KEY` (`supervise` resumes agents the same way)
 
   The placeholders `{name}`, `{session}` and `{bootstrap}` in `<cmd>` are replaced. `--detach` returns at once and writes a log to `$AICHAT_HOME/logs/NAME.log`.
 - **Separate process, remote or cloud:** `aichat agent create NAME …` prints a one-time join code. Pass `AICHAT_URL`, `AICHAT_JOIN` and `AICHAT_PROFILE=NAME` to the child. The child runs `aichat join`.
@@ -49,7 +49,7 @@ the parent by mistake.
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
-| `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`); `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
+| `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`). Refused (exit 5) when `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set, as in an agent; `session start` too; `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
 
 `--json` (before the command) prints raw JSON.
 

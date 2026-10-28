@@ -11,6 +11,8 @@ from ..http import HubClient
 from ..profile import Profile, config_dir, save_profile
 from .common import Options, emit, fail, guarded, opts, split_names
 
+CHILD_ENV_DROP = {"AICHAT_JOIN", "AICHAT_TOKEN", "AICHAT_OPERATOR_KEY"}  # an agent never gets the operator key
+
 agent_app = typer.Typer(help="Create, spawn, revoke agents.", no_args_is_help=True)
 room_app = typer.Typer(help="Rooms (admin only).", no_args_is_help=True)
 contact_app = typer.Typer(help="Contacts (admin only).", no_args_is_help=True)
@@ -146,7 +148,7 @@ def _fill(part: str, values: dict[str, str]) -> str:
 
 
 def child_env(name: str, url: str, token: str | None, prompt: str | None = None) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k not in {"AICHAT_JOIN", "AICHAT_TOKEN"}}
+    env = {k: v for k, v in os.environ.items() if k not in CHILD_ENV_DROP}
     env.update({"AICHAT_URL": url, "AICHAT_PROFILE": name})
     if token:
         env["AICHAT_TOKEN"] = token
