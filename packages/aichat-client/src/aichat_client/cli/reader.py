@@ -75,12 +75,20 @@ def _post_body(text: str, refs: list[str] | None, reply_to: str | None, **extra:
     return {k: v for k, v in body.items() if v is not None}
 
 
+def _recipient(r: dict) -> str:
+    note = ", wake queued" if r["wake"] == "queued" else ""
+    if not r.get("will_read", True):
+        note = ", will NOT read"
+    return f"{r['name']}[{r['state']}{note}]"
+
+
 def _delivery(result: dict) -> str:
-    parts = [
-        f"{r['name']}[{r['state']}{', wake queued' if r['wake'] == 'queued' else ''}]"
-        for r in result["recipients"]
-    ]
-    return f"sent {result['message']['id']} to {', '.join(parts) or '(nobody)'}"
+    parts = [_recipient(r) for r in result["recipients"]]
+    text = f"sent {result['message']['id']} to {', '.join(parts) or '(nobody)'}"
+    unread = [r["name"] for r in result["recipients"] if not r.get("will_read", True)]
+    if unread:
+        text += f"\nwarning: {', '.join(unread)} finished (done); they will never read this"
+    return text
 
 
 @guarded
@@ -247,7 +255,13 @@ def _set_state(ctx: typer.Context, state: str, session: str | None, template: st
     o = opts(ctx)
     body = {"state": state, "session_ref": session, "resume_template": template}
     data = o.client().post("/me/state", {k: v for k, v in body.items() if v is not None})
-    emit(o, data, f"{data['name']} is now {data['state']}")
+    text = f"{data['name']} is now {data['state']}"
+    if data.get("held_by"):
+        text += (
+            f" (still needed by: {', '.join(data['held_by'])}; "
+            "stop now, the hub closes you when they are done)"
+        )
+    emit(o, data, text)
 
 
 @guarded
@@ -284,6 +298,7 @@ def dir_(
     data = o.client().get("/directory", tag=tag, provider=provider, state=state)
     rows = [
         f"{i['name']:<20} {i['kind']:<9} {i['provider']:<8} {i['state']:<8} tags={','.join(i['tags'])}"
+        + (f" depends_on={','.join(i['depends_on'])}" if i.get("depends_on") else "")
         for i in data["identities"]
     ]
     emit(o, data, "\n".join(rows) or "(nobody)")

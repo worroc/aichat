@@ -49,6 +49,7 @@ class IdentityOut(BaseModel):
     provider: str
     description: str
     last_seen: datetime | None
+    depends_on: list[str] = Field(default_factory=list)
 
 
 class RoomOut(BaseModel):
@@ -75,6 +76,12 @@ class StateRequest(BaseModel):
     state: SelfState
     session_ref: str | None = None
     resume_template: str | None = None
+
+
+class StateResponse(IdentityOut):
+    # Agents that still depend on this one. Non-empty when `done` was asked for
+    # and the hub parked the agent instead; the hub closes it when they finish.
+    held_by: list[str] = Field(default_factory=list)
 
 
 # --- onboarding / admin ---------------------------------------------------
@@ -116,6 +123,8 @@ class CreateAgentRequest(BaseModel):
     description: str = ""
     session_ref: str | None = None
     resume_template: str | None = None
+    # Experts this agent may ask. They stay reachable (parked, not done) until it is done.
+    depends_on: list[str] = Field(default_factory=list)
 
 
 class CreateAgentResponse(BaseModel):
@@ -126,6 +135,7 @@ class CreateAgentResponse(BaseModel):
     contacts: list[str]
     rooms: list[str]
     tags: list[str]
+    depends_on: list[str] = Field(default_factory=list)
 
 
 class RejoinResponse(BaseModel):
@@ -197,6 +207,7 @@ class Recipient(BaseModel):
     name: str
     state: State
     wake: Literal["queued", "none"]
+    will_read: bool = True  # False when the recipient is done: nobody will read it
 
 
 class PostResponse(BaseModel):

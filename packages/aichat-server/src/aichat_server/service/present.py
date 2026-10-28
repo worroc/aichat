@@ -19,7 +19,9 @@ def ref_in(ref: wire.Ref) -> Ref:
     )
 
 
-def identity_out(ident: Identity) -> wire.IdentityOut:
+def identity_out(ident: Identity, visible: set[str] | None = None) -> wire.IdentityOut:
+    """``visible``: the viewer's visible names; hidden experts are left out (None: all)."""
+    depends_on = ident.depends_on if visible is None else ident.depends_on & visible
     return wire.IdentityOut(
         name=ident.name,
         role=ident.role.value,
@@ -30,6 +32,7 @@ def identity_out(ident: Identity) -> wire.IdentityOut:
         provider=ident.provider,
         description=ident.description,
         last_seen=ident.last_seen,
+        depends_on=sorted(depends_on),
     )
 
 

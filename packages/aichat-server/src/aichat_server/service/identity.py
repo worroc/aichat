@@ -36,16 +36,18 @@ from ..security import (
 )
 from .access import Access
 from .context import Ctx, now
+from .lifetime import Lifetime
 from .present import identity_out
 
 TAG_PREFIX = "tag:"
 
 
 class IdentityService:
-    def __init__(self, ctx: Ctx, access: Access) -> None:
+    def __init__(self, ctx: Ctx, access: Access, lifetime: Lifetime) -> None:
         self.ctx = ctx
         self.store = ctx.store
         self.access = access
+        self.lifetime = lifetime
 
     # --- authentication -------------------------------------------------------
 
@@ -96,18 +98,21 @@ class IdentityService:
         identities = await self.store.identities.list(p.ns)
         name = self._pick_name(req, {i.name for i in identities})
         contacts = await self._resolve_contacts(p, req.contacts, identities)
+        experts = await self._resolve_experts(p, req.depends_on, identities)
         rooms = await self._resolve_rooms(p, req.rooms)
         ident = self._new_identity(
             p.ns, name, Role.AGENT, kind, creator.name, req.provider, req.description,
             tags=frozenset(normalize(t) for t in req.tags),
             session_ref=req.session_ref,
             resume_template=req.resume_template,
+            depends_on=frozenset(experts),
         )
         code = new_secret(JOIN_PREFIX)
         async with self.store.tx():
             await self.store.identities.add(p.ns, ident)
             await self.store.credentials.add(p.ns, self._join_cred(p.ns, name, code))
-            await self._link(p.ns, name, {creator.name} | contacts, rooms)
+            await self._link(p.ns, name, {creator.name} | contacts | experts, rooms)
+        await self.lifetime.reopen(p.ns, experts)
         await self.ctx.audit(p.ns, p.name, "agent.create", name, detail=kind.value)
         await self.ctx.emit(p.ns, "agent_created", {"name": name, "parent": creator.name})
         return wire.CreateAgentResponse(
@@ -115,9 +120,10 @@ class IdentityService:
             join_code=code,
             kind=kind.value,
             parent=creator.name,
-            contacts=sorted({creator.name} | contacts),
+            contacts=sorted({creator.name} | contacts | experts),
             rooms=sorted(r.name for r in rooms),
             tags=sorted(ident.tags),
+            depends_on=sorted(experts),
         )
 
     def _check_depth(self, creator: Identity, wanted: Kind) -> Kind:
@@ -173,6 +179,18 @@ class IdentityService:
             raise not_found(f"contact {item!r}")
         return {item}
 
+    async def _resolve_experts(
+        self, p: Principal, requested: list[str], identities: list[Identity]
+    ) -> set[str]:
+        """Experts must already exist, so a dependency cycle cannot be built."""
+        live = {i.name for i in identities if not i.revoked and i.role is Role.AGENT}
+        allowed = live if p.is_admin else await self.access.visible_names(p) & live
+        experts = {normalize(n) for n in requested}
+        unknown = experts - allowed
+        if unknown:
+            raise not_found(f"expert {sorted(unknown)[0]!r}")
+        return experts
+
     async def _resolve_rooms(self, p: Principal, names: list[str]) -> list[Channel]:
         rooms: list[Channel] = []
         for raw in names:
@@ -206,6 +224,7 @@ class IdentityService:
         session_ref: str | None = None,
         resume_template: str | None = None,
         state: State = State.PENDING,
+        depends_on: frozenset[str] = frozenset(),
     ) -> Identity:
         return Identity(
             ns=ns,
@@ -222,6 +241,7 @@ class IdentityService:
             session_ref=session_ref,
             resume_template=resume_template,
             created_at=now(),
+            depends_on=depends_on,
         )
 
     def _join_cred(self, ns: str, name: str, code: str) -> Credential:
@@ -298,6 +318,8 @@ class IdentityService:
         names = [v.name for v in victims]
         for victim in names:
             await self.ctx.notifier.publish(reader_topic(p.ns, victim))
+        for victim in victims:
+            await self.lifetime.release(victim)
         await self.ctx.audit(p.ns, p.name, "agent.revoke", ",".join(names))
         await self.ctx.emit(p.ns, "agent_revoked", {"names": names})
         return names
@@ -355,11 +377,16 @@ class IdentityService:
 
     # --- presence / directory ---------------------------------------------------------
 
-    async def set_state(self, p: Principal, req: wire.StateRequest) -> wire.IdentityOut:
+    async def set_state(self, p: Principal, req: wire.StateRequest) -> wire.StateResponse:
         ident = await self.ctx.identity(p)
+        state, held_by = State(req.state), []
+        asked_done = state is State.DONE
+        if asked_done:
+            state, held_by = await self.lifetime.done_state(ident)
         updated = replace(
             ident,
-            state=State(req.state),
+            state=state,
+            done_requested=ident.done_requested or asked_done,
             session_ref=req.session_ref if req.session_ref is not None else ident.session_ref,
             resume_template=(
                 req.resume_template if req.resume_template is not None else ident.resume_template
@@ -367,13 +394,20 @@ class IdentityService:
             last_seen=now(),
         )
         await self.store.identities.replace(p.ns, updated)
-        await self.ctx.emit(p.ns, "presence", {"name": p.name, "state": req.state})
-        return identity_out(updated)
+        await self.ctx.emit(p.ns, "presence", {"name": p.name, "state": state.value})
+        await self.lifetime.after_state(updated)
+        current = await self.store.identities.get(p.ns, p.name) or updated
+        visible = await self.access.visible_names(p)
+        return wire.StateResponse(
+            **identity_out(current, visible).model_dump(),
+            held_by=[n for n in held_by if n in visible],
+        )
 
     async def me(self, p: Principal) -> wire.MeResponse:
         ident = await self.ctx.identity(p)
         identities = {i.name: i for i in await self.store.identities.list(p.ns)}
         contacts = await self.store.contacts.list(p.ns, p.name)
+        visible = await self.access.visible_names(p)
         rooms = await self._rooms_of(p)
         children = sorted(n for n, i in identities.items() if i.parent == p.name and not i.revoked)
         return wire.MeResponse(
@@ -385,7 +419,9 @@ class IdentityService:
             state=ident.state.value,
             tags=sorted(ident.tags),
             provider=ident.provider,
-            contacts=[identity_out(identities[c]) for c in sorted(contacts) if c in identities],
+            contacts=[
+                identity_out(identities[c], visible) for c in sorted(contacts) if c in identities
+            ],
             rooms=rooms,
             children=children,
         )
@@ -422,5 +458,5 @@ class IdentityService:
                 continue
             if state and ident.state.value != state:
                 continue
-            found.append(identity_out(ident))
+            found.append(identity_out(ident, visible))
         return wire.DirectoryResponse(identities=sorted(found, key=lambda i: i.name))

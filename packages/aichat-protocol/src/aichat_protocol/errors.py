@@ -15,6 +15,8 @@ class ErrorCode(StrEnum):
     ALREADY_ANSWERED = "already_answered"
     IDEMPOTENCY_CONFLICT = "idempotency_conflict"
     NOT_ANSWERABLE = "not_answerable"
+    RECIPIENT_DONE = "recipient_done"
+    UNREAD_PENDING = "unread_pending"
     SECRET_IN_TEXT = "secret_in_text"
     PAYLOAD_TOO_LARGE = "payload_too_large"
     RATE_LIMITED = "rate_limited"
@@ -35,6 +37,8 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.ALREADY_ANSWERED: 409,
     ErrorCode.IDEMPOTENCY_CONFLICT: 409,
     ErrorCode.NOT_ANSWERABLE: 422,
+    ErrorCode.RECIPIENT_DONE: 409,
+    ErrorCode.UNREAD_PENDING: 409,
     ErrorCode.SECRET_IN_TEXT: 422,
     ErrorCode.PAYLOAD_TOO_LARGE: 413,
     ErrorCode.RATE_LIMITED: 429,
@@ -57,6 +61,7 @@ class ExitCode:
 EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.QUESTION_CLOSED: ExitCode.CLOSED,
     ErrorCode.ALREADY_ANSWERED: ExitCode.CLOSED,
+    ErrorCode.RECIPIENT_DONE: ExitCode.CLOSED,
     ErrorCode.NOT_FOUND: ExitCode.NOT_FOUND,
     ErrorCode.FORBIDDEN: ExitCode.FORBIDDEN,
     ErrorCode.DEPTH_EXCEEDED: ExitCode.FORBIDDEN,

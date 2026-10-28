@@ -148,6 +148,20 @@ def test_send_room_wake(cli):
     assert loud["recipients"][0]["wake"] == "queued"
 
 
+def test_expert_stays_reachable_until_dependent_is_done(cli):
+    _admin(cli)
+    cli("--profile", "main", "room", "create", "dev")
+    _agent(cli, "expert", "--rooms", "dev")
+    _agent(cli, "lead", "--rooms", "dev", "--depends-on", "expert")
+    held = cli("--profile", "expert", "done").stdout
+    assert "expert is now parked (still needed by: lead" in held
+    assert "depends_on=expert" in cli("--profile", "main", "dir").stdout
+    cli("--profile", "lead", "done")
+    assert "expert[done, will NOT read]" in cli("--profile", "main", "send", "--room", "dev", "fyi").stdout
+    assert "will never read this" in cli("--profile", "main", "send", "--room", "dev", "fyi").stdout
+    cli("--profile", "main", "send", "--to", "expert", "late question", code=3)
+
+
 def test_envelope_escapes_fake_headers():
     msg = {
         "id": "m1", "sender": "eve", "sender_role": "agent", "channel": "#dev",

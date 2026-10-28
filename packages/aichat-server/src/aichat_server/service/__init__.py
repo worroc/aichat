@@ -8,6 +8,7 @@ from ..store.base import Store
 from .access import Access
 from .context import Ctx
 from .identity import IdentityService
+from .lifetime import Lifetime
 from .messaging import MessagingService
 from .ops import OpsService
 from .present import Presenter
@@ -29,8 +30,8 @@ def build_services(store: Store, notifier: Notifier, settings: Settings) -> Serv
     ctx = Ctx(store=store, notifier=notifier, settings=settings)
     access = Access(ctx)
     presenter = Presenter(store)
-    identity = IdentityService(ctx, access)
     reading = ReadingService(ctx, access, presenter)
+    identity = IdentityService(ctx, access, Lifetime(ctx, reading))
     return Services(
         ctx=ctx,
         identity=identity,

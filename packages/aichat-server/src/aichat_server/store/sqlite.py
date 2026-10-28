@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS identities (
     kind TEXT NOT NULL, parent TEXT, depth INTEGER NOT NULL, state TEXT NOT NULL,
     tags TEXT NOT NULL, provider TEXT NOT NULL, description TEXT NOT NULL,
     session_ref TEXT, resume_template TEXT, created_at TEXT NOT NULL, last_seen TEXT,
+    depends_on TEXT NOT NULL DEFAULT '[]', done_requested INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (ns, name)
 );
 CREATE TABLE IF NOT EXISTS credentials (
@@ -121,6 +122,13 @@ NS_TABLES = (
     ("namespaces", "id"),
 )
 
+# Columns added after a table was first shipped: (table, column, definition).
+# Db.__init__ adds the ones an older database file lacks.
+ADDED_COLUMNS = (
+    ("identities", "depends_on", "TEXT NOT NULL DEFAULT '[]'"),
+    ("identities", "done_requested", "INTEGER NOT NULL DEFAULT 0"),
+)
+
 MESSAGE_COLS = (
     "ns, id, channel_id, seq, time, sender, sender_role, kind, text, reply_to, thread_id, "
     "recipients, max_agents_answers, expires_at, refs, closed_reason, amended_at"
@@ -151,7 +159,14 @@ class Db:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
+        self._add_missing_columns()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="aichat-sqlite")
+
+    def _add_missing_columns(self) -> None:
+        for table, column, definition in ADDED_COLUMNS:
+            present = {row["name"] for row in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in present:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     async def call(self, fn: Callable[..., Any], *args: Any) -> Any:
         return await asyncio.get_running_loop().run_in_executor(self._pool, fn, *args)
@@ -215,7 +230,7 @@ class SqliteIdentities:
     def _add(self, ns: str, i: Identity) -> None:
         try:
             self._db.run(
-                "INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 *_identity_row(ns, i),
             )
         except sqlite3.IntegrityError:
@@ -241,7 +256,8 @@ class SqliteIdentities:
         changed = self._db.run(
             "UPDATE identities SET uid = ?, role = ?, kind = ?, parent = ?, depth = ?, state = ?,"
             " tags = ?, provider = ?, description = ?, session_ref = ?, resume_template = ?,"
-            " created_at = ?, last_seen = ? WHERE ns = ? AND name = ?",
+            " created_at = ?, last_seen = ?, depends_on = ?, done_requested = ?"
+            " WHERE ns = ? AND name = ?",
             *row[2:], ns, i.name,
         )
         if not changed:
@@ -252,7 +268,8 @@ def _identity_row(ns: str, i: Identity) -> tuple[Any, ...]:
     return (
         ns, i.name, i.uid, i.role.value, i.kind.value, i.parent, i.depth, i.state.value,
         json.dumps(sorted(i.tags)), i.provider, i.description, i.session_ref,
-        i.resume_template, _ts(i.created_at), _ts(i.last_seen),
+        i.resume_template, _ts(i.created_at), _ts(i.last_seen), json.dumps(sorted(i.depends_on)),
+        int(i.done_requested),
     )
 
 
@@ -273,6 +290,8 @@ def _identity(row: sqlite3.Row) -> Identity:
         resume_template=row["resume_template"],
         created_at=_dt(row["created_at"]),
         last_seen=_dt(row["last_seen"]),
+        depends_on=frozenset(json.loads(row["depends_on"])),
+        done_requested=bool(row["done_requested"]),
     )
 
 

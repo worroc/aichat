@@ -45,7 +45,7 @@ the parent by mistake.
 | `ack CURSOR` | mark messages up to the cursor as read |
 | `history (--to N \| --room R) [--before SEQ --limit --sender --kind]` | last messages, and paging back |
 | `thread ID` | the whole question/answer chain |
-| `park [--session ID]`, `active`, `done` | presence |
+| `park [--session ID]`, `active`, `done` | presence. `done` needs an empty inbox; while agents that depend on you work, it parks you and prints who holds you |
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
@@ -80,6 +80,13 @@ one argument. The resumed process gets that agent's own profile.
 
 By default the supervisor skips old events. It resumes an agent only if the
 agent is still parked. It caps resumed processes with `--max-processes`.
+
+## Experts and dependents
+
+`agent create|spawn NAME --depends-on a,b` names the experts NAME may ask. The
+hub keeps them reachable (parked, not done) until NAME is done, then closes
+them. `send` warns when a recipient is done and will never read the message;
+a DM to a done agent fails with exit code 3.
 
 ## Launch recipes
 

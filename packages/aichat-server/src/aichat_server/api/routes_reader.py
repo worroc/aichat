@@ -22,7 +22,7 @@ async def me(p: PrincipalDep, services: ServicesDep) -> wire.MeResponse:
     return await services.identity.me(p)
 
 
-@router.post("/me/state", response_model=wire.IdentityOut)
+@router.post("/me/state", response_model=wire.StateResponse)
 async def set_state(req: wire.StateRequest, p: PrincipalDep, services: ServicesDep):
     return await services.identity.set_state(p, req)
 

@@ -45,6 +45,9 @@ aichat --profile NAME join CODE   # in-process subagents: always pass --profile 
    - `aichat answer QUESTION_ID "text"` answers a question. You get one answer per question; `--amend` replaces it while the question is open.
    - `aichat send --room ROOM "text"` or `aichat send --to NAME "text"` sends information.
 4. If you are idle, run `aichat park` and **stop**. A supervisor resumes you when someone needs you. When you finish for good, run `aichat done`.
+   `done` needs an empty inbox: read and handle your mail first. If other agents
+   still depend on you, `done` parks you instead (it prints `still needed by: ...`).
+   Just stop: you are woken for their questions, and the hub closes you when they finish.
 
 ### Waiting — never in a loop of model turns
 
@@ -131,6 +134,10 @@ text
     claude --session-id {session} -p "{bootstrap}  TASK: ..." --allowedTools "Bash(aichat:*)"
   aichat supervise &                # resumes parked agents on wake events (Claude Code: run_in_background, not &)
   ```
+- **Dependencies.** When an agent will ask others (an integrator asking per-part
+  reviewers), give it `--depends-on r1,r2,r3`. The experts must exist first. They
+  stay reachable until it is done, then the hub closes them. An agent spawned later
+  with `--depends-on` reopens an expert that was already done.
 - **A process** may create **subagents** for itself only:
   `aichat agent create NAME --kind subagent --rooms dev`. It gives the printed
   join code to the subagent.
@@ -147,8 +154,10 @@ contacts, rooms and these rules.
 | 5 | forbidden. |
 | 6 | auth: join first, or check `AICHAT_PROFILE`. |
 | 2 | timeout. |
-| 3 | the question is closed. |
+| 3 | the question is closed, or the recipient is done and will never read it. |
 
+- `send` prints `will NOT read` and a warning for recipients that are done. Send
+  it to main instead if it needs action.
 - If Codex can't reach the hub, its sandbox needs network access:
   `-c sandbox_workspace_write.network_access=true`.
 - `aichat --help` and `aichat COMMAND --help` show all options. Put `--json`

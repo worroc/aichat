@@ -169,7 +169,7 @@ async def test_wake_event_for_parked_agent(hub, client):
     bob = await hub.agent(main, "bob", resume_template="echo {session} {prompt}")
     await bob.ok("post", "/me/state", {"state": "parked", "session_ref": "S1"})
     sent = await main.ok("post", "/dm/bob", {"text": "are you there?", "kind": "question"})
-    assert sent["recipients"] == [{"name": "bob", "state": "parked", "wake": "queued"}]
+    assert sent["recipients"] == [{"name": "bob", "state": "parked", "wake": "queued", "will_read": True}]
     wake = await main.ok("get", "/wake/events")
     event = wake["events"][-1]
     assert event["type"] == "wake_needed"
@@ -182,9 +182,9 @@ async def test_room_information_wakes_parked_only_on_request(hub):
     main, (bob,) = await _setup_room(hub, "bob")
     await bob.ok("post", "/me/state", {"state": "parked", "session_ref": "S1"})
     quiet = await main.ok("post", "/rooms/dev/messages", {"text": "fyi"})
-    assert quiet["recipients"] == [{"name": "bob", "state": "parked", "wake": "none"}]
+    assert quiet["recipients"] == [{"name": "bob", "state": "parked", "wake": "none", "will_read": True}]
     loud = await main.ok("post", "/rooms/dev/messages", {"text": "please act", "wake": True})
-    assert loud["recipients"] == [{"name": "bob", "state": "parked", "wake": "queued"}]
+    assert loud["recipients"] == [{"name": "bob", "state": "parked", "wake": "queued", "will_read": True}]
     events = (await main.ok("get", "/wake/events"))["events"]
     assert [e["data"]["name"] for e in events if e["type"] == "wake_needed"] == ["bob"]
 

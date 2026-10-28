@@ -50,7 +50,12 @@ class MessagingService:
         to = {normalize(n) for n in req.to}
         if to - others:
             raise invalid(f"not room members: {sorted(to - others)}")
-        answerers = to or others
+        closed = await self._closed(p.ns, others)
+        if to & closed:
+            raise recipient_done(sorted(to & closed))
+        if req.kind == MsgKind.QUESTION.value and closed and not to and not others - closed:
+            raise recipient_done(sorted(closed))
+        answerers = to or others - closed
         new = await self._build(p, channel, req, frozenset(to), answerers)
         message = await self._store(p, new)
         wake = to or (others if message.kind is MsgKind.QUESTION or req.wake else set())
@@ -61,6 +66,8 @@ class MessagingService:
     ) -> wire.PostResponse:
         await self.ctx.identity(p)
         channel, peer = await self.access.direct_for_post(p, normalize(peer_name))
+        if peer.closed:
+            raise recipient_done([peer.name])
         if req.to and {normalize(n) for n in req.to} != {peer.name}:
             raise invalid("in a DM, 'to' can only be the peer")
         new = await self._build(p, channel, req, frozenset({peer.name}), {peer.name})
@@ -74,6 +81,15 @@ class MessagingService:
             if ident is not None and not ident.revoked:
                 names.add(ident.name)
         return names
+
+    async def _closed(self, ns: str, names: set[str]) -> set[str]:
+        """Members that are done: a message to them is never read."""
+        found: set[str] = set()
+        for name in names:
+            ident = await self.store.identities.get(ns, name)
+            if ident is not None and ident.closed:
+                found.add(name)
+        return found
 
     async def _build(
         self,
@@ -169,7 +185,12 @@ class MessagingService:
             if woken:
                 await self._emit_wake(ident, message)
             recipients.append(
-                wire.Recipient(name=name, state=ident.state.value, wake="queued" if woken else "none")
+                wire.Recipient(
+                    name=name,
+                    state=ident.state.value,
+                    wake="queued" if woken else "none",
+                    will_read=not ident.closed,
+                )
             )
         await self.ctx.emit(p.ns, "message", self._event_data(channel, message))
         await self.ctx.audit(p.ns, p.name, f"post.{message.kind.value}", label(channel, None), message.id)
@@ -332,3 +353,10 @@ class MessagingService:
             if ident is not None and ident.state is State.PARKED:
                 parked.append(name)
         return parked
+
+
+def recipient_done(names: list[str]) -> DomainError:
+    return DomainError(
+        ErrorCode.RECIPIENT_DONE,
+        f"{', '.join(names)} finished for good (done) and will never read this; ask main instead",
+    )

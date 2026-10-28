@@ -20,6 +20,10 @@ Prefix = Annotated[str | None, typer.Option("--name-prefix", help="auto-number: 
 KindOpt = Annotated[str | None, typer.Option("--kind", help="process (admin only) or subagent")]
 Contacts = Annotated[str | None, typer.Option("--contacts", help="a,b,tag:designer")]
 Rooms = Annotated[str | None, typer.Option("--rooms", help="r1,r2")]
+DependsOn = Annotated[
+    str | None,
+    typer.Option("--depends-on", help="experts a,b: they stay reachable until this agent is done"),
+]
 Tags = Annotated[str | None, typer.Option("--tags", help="t1,t2")]
 Provider = Annotated[str, typer.Option("--provider", help="claude | codex | agy | ...")]
 Description = Annotated[str, typer.Option("--description")]
@@ -46,9 +50,12 @@ def _create(
     return client.create(path, body)
 
 
-def _fields(contacts, rooms, tags, provider, description, template, session) -> dict[str, Any]:
+def _fields(
+    contacts, rooms, tags, provider, description, template, session, depends_on
+) -> dict[str, Any]:
     return {
         "contacts": split_names(contacts),
+        "depends_on": split_names(depends_on),
         "rooms": split_names(rooms),
         "tags": split_names(tags),
         "provider": provider,
@@ -67,6 +74,7 @@ def create(
     kind: KindOpt = None,
     contacts: Contacts = None,
     rooms: Rooms = None,
+    depends_on: DependsOn = None,
     tags: Tags = None,
     provider: Provider = "unknown",
     description: Description = "",
@@ -75,7 +83,9 @@ def create(
 ) -> None:
     """Create an agent; print its one-time join code and bootstrap prompt."""
     o = opts(ctx)
-    fields = _fields(contacts, rooms, tags, provider, description, resume_template, session)
+    fields = _fields(
+        contacts, rooms, tags, provider, description, resume_template, session, depends_on
+    )
     created = _create(o, name, name_prefix, kind, fields)
     prompt = bootstrap.render(created, provider)
     text = (
@@ -98,6 +108,7 @@ def spawn(
     kind: KindOpt = None,
     contacts: Contacts = None,
     rooms: Rooms = None,
+    depends_on: DependsOn = None,
     tags: Tags = None,
     provider: Provider = "unknown",
     description: Description = "",
@@ -114,7 +125,9 @@ def spawn(
     command = list(ctx.args)
     if not command:
         fail("give the command to run after --, e.g. -- codex exec '{bootstrap}'")
-    fields = _fields(contacts, rooms, tags, provider, description, resume_template, session)
+    fields = _fields(
+        contacts, rooms, tags, provider, description, resume_template, session, depends_on
+    )
     created = _create(o, name, name_prefix, kind, fields)
     prompt = bootstrap.render(created, provider)
     url = o.credentials().url

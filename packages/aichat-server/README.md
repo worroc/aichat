@@ -45,6 +45,7 @@ api/        thin routes: auth, rate limit, idempotency, error envelope, SSE
 service/    all chat rules
   access.py     visibility (404 for anything hidden)
   identity.py   namespaces, agents, depth rule, join, revoke, presence, directory
+  lifetime.py   experts stay reachable: `done` -> parked while dependents work; auto-close
   rooms.py      rooms, members, contacts (admin)
   messaging.py  post, questions, answers, amend, close, wait for answers, wake events
   reading.py    new messages + cursor/ack, inbox, history, threads
@@ -55,6 +56,32 @@ notify.py   wake-up hints for long-polls (in-memory asyncio events)
 lifecycle.py  start in the background, detect, --stop/--restart (shared by both commands)
 ui_dev.py     `aichat-server-ui`: runs the ui/ Vite dev server
 ```
+
+### Agent lifetime (`service/lifetime.py`)
+
+An agent created with `depends_on` names its experts. They must already exist
+and be agents (not humans or the admin), so a dependency cycle cannot be built.
+The experts also become its contacts, so it can DM them.
+
+- `done` needs an empty inbox (`unread_pending` otherwise). Asking for `done`
+  sets `done_requested`: the agent's own work is finished.
+- An expert asking for `done` while a dependent is still open is stored as
+  `parked`. `POST /me/state` returns `held_by` with those dependents (only the
+  ones the expert can see).
+- The hub closes only a parked agent with `done_requested` and no open
+  dependent. This is checked when one of its dependents closes or is revoked
+  (the release continues down the chain), and when it parks itself (this also
+  covers a dependent closing at the same moment). One with unread mail is woken
+  (`wake_needed`, kind `release`) instead. An agent parked while it waits for
+  an answer, without asking for `done`, is never closed by the hub.
+- A new agent that depends on a `done` expert reopens it as `parked`, and the
+  experts of that expert down the chain.
+- `depends_on` in the directory and in `me` shows only experts the viewer can see.
+- A DM, or a room post targeted (`to`) at a `done` agent, fails with
+  `recipient_done`. Room recipients carry `will_read=false` for `done` members,
+  and room questions do not count them as possible answerers.
+
+SQLite files from before `depends_on` get the column on start (`ADDED_COLUMNS`).
 
 ### Store rules (checked by `tests/contract`)
 - Every method takes `ns` first. The only exceptions are listed in `NS_EXEMPT`.

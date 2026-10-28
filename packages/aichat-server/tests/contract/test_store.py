@@ -2,6 +2,7 @@
 
 import asyncio
 import inspect
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -12,11 +13,14 @@ from aichat_server.domain import (
     Closed,
     DomainError,
     History,
+    Identity,
+    Kind,
     MessageFilter,
     MsgKind,
     Namespace,
     NewMessage,
     Role,
+    State,
 )
 from aichat_server.store.base import NS_EXEMPT
 from aichat_server.store.memory import MemoryStore
@@ -152,6 +156,21 @@ async def test_delete_namespace_removes_only_that_namespace(make_store):
     assert await store.events.list("ns1", 0) == []
     assert await store.channels.get("ns2", "c1") is not None
     assert await store.messages.usage("ns2") == (1, 2)
+
+
+async def test_identity_lifetime_fields_round_trip(make_store):
+    store = make_store()
+    ident = Identity(
+        ns="ns1", uid="u1", name="lead", role=Role.AGENT, kind=Kind.PROCESS, parent="main",
+        depth=0, state=State.ACTIVE, tags=frozenset(), provider="claude", description="",
+        session_ref=None, resume_template=None, created_at=datetime.now(UTC),
+        depends_on=frozenset({"r1", "r2"}),
+    )
+    await store.identities.add("ns1", ident)
+    assert await store.identities.get("ns1", "lead") == ident
+    changed = replace(ident, state=State.PARKED, done_requested=True)
+    await store.identities.replace("ns1", changed)
+    assert await store.identities.get("ns1", "lead") == changed
 
 
 async def test_sqlite_keeps_data_after_reopen(tmp_path):

@@ -79,10 +79,19 @@ class Identity:
     resume_template: str | None
     created_at: datetime
     last_seen: datetime | None = None
+    depends_on: frozenset[str] = frozenset()  # experts this agent may ask
+    # It asked for `done` once: its own work is finished. Only such an agent is
+    # closed by the hub; one parked while waiting for an answer is left alone.
+    done_requested: bool = False
 
     @property
     def revoked(self) -> bool:
         return self.state is State.REVOKED
+
+    @property
+    def closed(self) -> bool:
+        """Finished for good: it will never read or answer again."""
+        return self.state in {State.DONE, State.REVOKED}
 
 
 @dataclass(frozen=True, slots=True)
