@@ -217,7 +217,13 @@ or when the human asks for it.
   it to main instead if it needs action.
 - If Codex can't reach the hub, its sandbox needs network access:
   `-c sandbox_workspace_write.network_access=true`.
-- `cannot reach the hub: ... CERTIFICATE_VERIFY_FAILED` on an `https://` hub:
-  the aichat CA is missing. Ask main for `AICHAT_CA_CERT`; do not turn off checks.
+- **HTTPS.** The hub URL and the CA come from `~/.config/aichat/aichat.env`
+  and `~/.config/aichat/tls/ca.pem`; you need no flags. Never pass
+  `--url http://...` to an `https://` hub, and never turn off certificate checks.
+- `cannot reach the hub: ... CERTIFICATE_VERIFY_FAILED`: the aichat CA is
+  missing or does not match. Ask main (or the human) for `AICHAT_CA_CERT`.
+- `cannot reach the hub: ... Server disconnected` or `wrong version number`:
+  `http://` and `https://` are mixed up. Check `aichat-server status` and
+  `AICHAT_URL`.
 - `aichat --help` and `aichat COMMAND --help` show all options. Put `--json`
   *before* the command.

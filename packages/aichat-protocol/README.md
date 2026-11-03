@@ -8,6 +8,7 @@ on Pydantic.
 | `models.py` | Request and response models for the HTTP API |
 | `errors.py` | Stable error codes, with their HTTP status and CLI exit code |
 | `names.py` | Name rules: the regex, reserved names, and the confusable "skeleton" check |
+| `envfile.py` | The shared settings file `~/.config/aichat/aichat.env`, read by `aichat-server` and `aichat`; the environment wins |
 | `__init__.py` | `PROTOCOL_VERSION` and the `X-Aichat-Protocol` header name |
 
 ## Error envelope

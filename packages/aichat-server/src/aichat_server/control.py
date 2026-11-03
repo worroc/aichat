@@ -12,6 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
+from aichat_protocol import envfile
+
 from . import lifecycle, main, startlog, tls, ui_dev
 from .config import Settings
 
@@ -29,6 +31,7 @@ settings (environment variables):
   AICHAT_URL                      the hub the UI talks to (http://127.0.0.1:8765)
   AICHAT_UI_DIR                   the ui/ folder of the aichat repo (found next to this package)
   AICHAT_UI_PID_FILE              UI pid file (~/.config/aichat/aichat-server-ui-{port}.pid)
+  AICHAT_ENV_FILE                 settings file read first (~/.config/aichat/aichat.env); env wins
   AICHAT_LOG_DIR                  log folder (/var/log/aichat); files: <name>-<port>.log
   AICHAT_TLS_CERT, AICHAT_TLS_KEY HTTPS for hub and UI when both are set (made by `aichat-server cert`)
   AICHAT_CA_CERT                  the CA the UI trusts for an https:// hub (~/.config/aichat/tls/ca.pem)
@@ -178,6 +181,7 @@ def _run_each(action: str, entries: dict[str, Entry], names: list[str], foregrou
 
 
 def run(argv: list[str] | None = None) -> None:
+    envfile.load()  # ~/.config/aichat/aichat.env: settings made once for every start
     parser = _parser()
     args = parser.parse_args(argv)
     if args.action is None:

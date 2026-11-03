@@ -18,6 +18,11 @@ aichat CA on top of the system CAs: `$AICHAT_CA_CERT`, else
 `~/.config/aichat/tls/ca.pem` if it exists. Spawned agents inherit both
 `AICHAT_URL` and `AICHAT_CA_CERT`.
 
+Every command first reads `~/.config/aichat/aichat.env` (`$AICHAT_ENV_FILE`;
+`aichat_protocol/envfile.py`). Set `AICHAT_URL` there once per host. The
+environment wins over the file. Tokens, profiles and the operator key are never
+read from it.
+
 With `AICHAT_REQUIRE_PROFILE=1`, the CLI ignores `$AICHAT_TOKEN`. Use this for
 in-process subagents that share their parent's env, so they don't post as
 the parent by mistake.

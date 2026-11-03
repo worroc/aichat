@@ -3,6 +3,7 @@
 from typing import Annotated
 
 import typer
+from aichat_protocol import envfile
 
 from ..http import HubClient
 from . import reader
@@ -27,6 +28,7 @@ def main(
     profile: Annotated[str | None, typer.Option("--profile", help="profile name (or $AICHAT_PROFILE)")] = None,
     as_json: Annotated[bool, typer.Option("--json", help="print raw JSON")] = False,
 ) -> None:
+    envfile.load()  # ~/.config/aichat/aichat.env: e.g. AICHAT_URL and AICHAT_CA_CERT, set once per host
     ctx.obj = Options(url=url, token=token, profile=profile, as_json=as_json)
 
 

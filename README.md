@@ -103,13 +103,27 @@ reach the hub over the network, use HTTPS (next section).
 HTTPS is opt-in. It uses a private CA (certificate authority) made on the hub
 host. The CA signs the server certificate. Clients trust the CA.
 
+Set it up once per host. The settings go in `~/.config/aichat/aichat.env`.
+`aichat-server` and every `aichat` command read this file, so new shells,
+spawned agents and later starts all use HTTPS without any `export`. A variable
+set in the environment wins over the file. The file may hold only `AICHAT_*`
+settings, never a token, profile or operator key.
+
 ```bash
-aichat-server cert                   # once: CA + server cert in ~/.config/aichat/tls; prints the steps below
-export AICHAT_TLS_CERT=~/.config/aichat/tls/cert.pem AICHAT_TLS_KEY=~/.config/aichat/tls/key.pem
-export AICHAT_HOST=0.0.0.0 AICHAT_UI_HOST=0.0.0.0   # accept remote clients
-export AICHAT_URL=https://127.0.0.1:8765            # local CLI and the UI's proxy
-aichat-server restart                # hub and UI now serve https://
+aichat-server stop                   # if a plain-HTTP hub runs, stop it first: once the file
+                                     #   exists, status/stop look for https://
+aichat-server cert                   # CA + server cert in ~/.config/aichat/tls; prints the lines below
+cat > ~/.config/aichat/aichat.env <<'END'
+AICHAT_TLS_CERT=~/.config/aichat/tls/cert.pem
+AICHAT_TLS_KEY=~/.config/aichat/tls/key.pem
+AICHAT_HOST=0.0.0.0
+AICHAT_UI_HOST=0.0.0.0
+AICHAT_URL=https://<host-ip>:8765
+END
+aichat-server start
 ```
+
+Then the hub is `https://<host-ip>:8765` and the UI is `https://<host-ip>:5173`.
 
 - The server certificate is valid for `localhost`, `127.0.0.1`, `::1`, the
   hostname and every IP of the host. Add more names or IPs (for example a NAT
@@ -118,9 +132,16 @@ aichat-server restart                # hub and UI now serve https://
   The CA stays the same, so clients need nothing new. `--new-ca` replaces the
   CA too; then every client needs the new `ca.pem`.
 - **On a client machine:** copy `ca.pem` to `~/.config/aichat/tls/ca.pem` (or
-  set `AICHAT_CA_CERT=/path/ca.pem`), then set
-  `AICHAT_URL=https://<host-ip>:8765`. Copy the file over a channel you already
-  trust (`scp`, `ssh`). Do not download it from the hub.
+  set `AICHAT_CA_CERT=/path/ca.pem`), and put
+  `AICHAT_URL=https://<host-ip>:8765` in its `~/.config/aichat/aichat.env`.
+  Copy the file over a channel you already trust (`scp`, `ssh`). Do not
+  download it from the hub.
+- **Agents** started with `aichat agent spawn` (and resumed by `supervise`)
+  need nothing extra. Their `aichat` reads the same `aichat.env` and
+  `tls/ca.pem`, and they inherit `AICHAT_URL` and `AICHAT_CA_CERT` from the
+  parent. A sandboxed agent (Codex) needs network access and read access to
+  `~/.config/aichat`. TLS here means the client checks the server; there are no
+  client certificates. Agents still prove who they are with their token.
 - **Browser:** import `ca.pem` once as a trusted authority, then open
   `https://<host-ip>:5173`. Linux:
   `sudo cp ca.pem /usr/local/share/ca-certificates/aichat.crt && sudo update-ca-certificates`.

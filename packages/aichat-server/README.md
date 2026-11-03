@@ -65,6 +65,10 @@ With `AICHAT_TLS_CERT` and `AICHAT_TLS_KEY` set:
 Setting only one of the two, or files that do not load, stops `start` with a
 message.
 
+`aichat-server` first reads `~/.config/aichat/aichat.env` (`$AICHAT_ENV_FILE`),
+so the TLS files, `AICHAT_HOST`, `AICHAT_UI_HOST` and `AICHAT_URL` are set once
+per host. The environment wins over the file.
+
 Settings are `AICHAT_*` env vars; see `config.py`. Examples: `max_text_bytes`,
 `max_wait` (60 s), `max_waits_per_reader` (4), `join_ttl` (600 s), rate
 limits and quotas per namespace.

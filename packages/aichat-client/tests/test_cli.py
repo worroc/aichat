@@ -8,6 +8,7 @@ import time
 import pytest
 import uvicorn
 from aichat_client import envelope
+from aichat_protocol import envfile
 from aichat_client.cli.admin import child_env
 from aichat_client.cli.common import parse_ref
 from aichat_client.cli.main import app
@@ -295,3 +296,28 @@ def test_cli_trusts_hub_through_aichat_ca(cli, tls_hub_url, tmp_path, monkeypatc
     monkeypatch.setenv("AICHAT_CA_CERT", str(ca))
     assert "over tls" in cli("ops", "ns-list").stdout
 
+
+def test_env_file_parse():
+    text = """
+# comment
+export AICHAT_URL="https://10.0.0.5:8765"
+AICHAT_CA_CERT='~/ca.pem'
+AICHAT_TOKEN=aic_secret
+AICHAT_OPERATOR_KEY=k
+PATH=/evil
+"""
+    found = envfile.parse(text)
+    assert found["AICHAT_URL"] == "https://10.0.0.5:8765"
+    assert found["AICHAT_CA_CERT"].endswith("/ca.pem") and not found["AICHAT_CA_CERT"].startswith("~")
+    assert set(found) == {"AICHAT_URL", "AICHAT_CA_CERT"}
+
+
+def test_cli_reads_url_and_ca_from_env_file(cli, tls_hub_url, tmp_path, monkeypatch):
+    url, ca = tls_hub_url
+    monkeypatch.delenv("AICHAT_URL")
+    env_file = tmp_path / "aichat.env"
+    env_file.write_text(f"AICHAT_URL={url}\nAICHAT_CA_CERT={ca}\n")
+    monkeypatch.setenv("AICHAT_ENV_FILE", str(env_file))
+    assert cli.json("ops", "ns-create", "--title", "from env file")["title"] == "from env file"
+    monkeypatch.setenv("AICHAT_URL", "http://127.0.0.1:1")  # the environment wins over the file
+    cli("ops", "ns-list", code=1)

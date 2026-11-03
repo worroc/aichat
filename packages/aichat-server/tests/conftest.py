@@ -9,6 +9,12 @@ from aichat_server.main import create_app
 OP_KEY = "test-operator-key"
 
 
+@pytest.fixture(autouse=True)
+def _no_host_env_file(tmp_path, monkeypatch):
+    """Never read the developer's ~/.config/aichat/aichat.env in tests."""
+    monkeypatch.setenv("AICHAT_ENV_FILE", str(tmp_path / "no-aichat.env"))
+
+
 @dataclass
 class Actor:
     name: str
