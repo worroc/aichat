@@ -71,8 +71,14 @@ make_log_dir() {
     return
   fi
   say "creating log folder $dir (needs sudo)"
-  sudo mkdir -p "$dir" && sudo chown "$(id -un):$(id -gn)" "$dir"
-  say "log folder created: $dir"
+  # Check each step: a failing command on the left of && does not trip set -e.
+  if ! sudo mkdir -p "$dir" || ! sudo chown "$(id -un):$(id -gn)" "$dir" || [ ! -w "$dir" ]; then
+    echo "could not create a writable log folder: $dir" >&2
+    echo "run:  sudo mkdir -p $dir && sudo chown $(id -un):$(id -gn) $dir" >&2
+    echo "or set AICHAT_LOG_DIR to a folder you own, then run this script again" >&2
+    exit 1
+  fi
+  say "log folder ready: $dir"
 }
 
 # link_skill DIR: symlink DIR/aichat -> repo skill, unless something else is there.
