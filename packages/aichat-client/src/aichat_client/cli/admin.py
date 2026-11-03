@@ -117,16 +117,25 @@ def spawn(
     resume_template: Template = None,
     session: Session = None,
     detach: Annotated[bool, typer.Option("--detach", help="return at once, log to a file")] = False,
+    cwd: Annotated[
+        str | None,
+        typer.Option("--cwd", help="run the command, and every `supervise` resume, in this dir"),
+    ] = None,
 ) -> None:
     """Create + join an agent, then run the command after `--` with its token in env.
 
     In the command, {name}, {session} and {bootstrap} are replaced. The child gets
-    AICHAT_URL, AICHAT_TOKEN, AICHAT_PROFILE and AICHAT_BOOTSTRAP.
+    AICHAT_URL, AICHAT_TOKEN, AICHAT_PROFILE and AICHAT_BOOTSTRAP. --cwd is kept in
+    the agent's profile, so `supervise` resumes it in the same directory - no
+    `sh -c 'cd DIR && ...'` wrapper needed.
     """
     o = opts(ctx)
     command = list(ctx.args)
     if not command:
         fail("give the command to run after --, e.g. -- codex exec '{bootstrap}'")
+    workdir = os.path.abspath(os.path.expanduser(cwd)) if cwd else ""
+    if workdir and not os.path.isdir(workdir):
+        fail(f"--cwd {cwd}: not a directory")
     fields = _fields(
         contacts, rooms, tags, provider, description, resume_template, session, depends_on
     )
@@ -134,11 +143,11 @@ def spawn(
     prompt = bootstrap.render(created, provider)
     url = o.credentials().url
     joined = HubClient(url).post("/join", {"code": created["join_code"]})
-    save_profile(Profile(name=created["name"], url=url, token=joined["token"]))
+    save_profile(Profile(name=created["name"], url=url, token=joined["token"], cwd=workdir))
     env = child_env(created["name"], url, joined["token"], prompt)
     values = {"{name}": created["name"], "{session}": session or "", "{bootstrap}": prompt}
     argv = [_fill(part, values) for part in command]
-    _run(o, created["name"], argv, env, detach)
+    _run(o, created["name"], argv, env, detach, workdir or None)
 
 
 def _fill(part: str, values: dict[str, str]) -> str:
@@ -163,13 +172,15 @@ def log_path(name: str):
     return path
 
 
-def _run(o: Options, name: str, argv: list[str], env: dict[str, str], detach: bool) -> None:
+def _run(
+    o: Options, name: str, argv: list[str], env: dict[str, str], detach: bool, cwd: str | None
+) -> None:
     if not detach:
-        raise typer.Exit(subprocess.run(argv, env=env, check=False).returncode)
+        raise typer.Exit(subprocess.run(argv, env=env, cwd=cwd, check=False).returncode)
     log = log_path(name)
     with open(log, "ab") as fh:
         proc = subprocess.Popen(
-            argv, env=env, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+            argv, env=env, cwd=cwd, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
     emit(o, {"name": name, "pid": proc.pid, "log": str(log)}, f"spawned {name} pid={proc.pid} log={log}")

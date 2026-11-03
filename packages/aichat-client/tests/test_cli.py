@@ -132,6 +132,35 @@ def test_spawn_runs_child_with_its_token(cli, tmp_path):
     assert '"name": "worker"' in text and text.strip().endswith("worker")
 
 
+def test_spawn_cwd_runs_child_there_and_supervise_resumes_there(cli, hub_url, tmp_path):
+    _admin(cli)
+    work = tmp_path / "work"
+    work.mkdir()
+    out = tmp_path / "pwd.txt"
+    cli(
+        "--profile", "main", "agent", "spawn", "placed", "--cwd", str(work),
+        "--resume-template", f"sh -c 'pwd > {out}'", "--", "sh", "-c", f"pwd > {out}",
+    )
+    assert out.read_text().strip() == str(work)
+    assert load_profile("placed").cwd == str(work)
+    out.unlink()
+    cli("--profile", "placed", "park", "--session", "S-cwd")
+    admin = HubClient(hub_url, load_profile("main").token)
+    start = latest_seq(admin)
+    cli("--profile", "main", "ask", "--to", "placed", "where are you?")
+    event = admin.get("/wake/events", after=start)["events"][0]["data"]
+    sup = Supervisor(client=admin, max_processes=1, dry_run=False)
+    sup.wake(event)
+    sup.running["placed"].wait(5)
+    assert out.read_text().strip() == str(work)
+
+
+def test_spawn_cwd_must_exist(cli, tmp_path):
+    _admin(cli)
+    cli("--profile", "main", "agent", "spawn", "lost", "--cwd", str(tmp_path / "no"), "--", "true",
+        code=1)
+
+
 def test_park_and_wake_event(cli):
     _admin(cli)
     _agent(cli, "sleeper", "--resume-template", "echo resume {session} {prompt}")

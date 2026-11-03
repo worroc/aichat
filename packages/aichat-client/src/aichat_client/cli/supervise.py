@@ -92,7 +92,8 @@ class Supervisor:
         HubClient(profile.url, profile.token).post("/me/state", {"state": "active"})
         with open(log_path(name), "ab") as fh:
             self.running[name] = subprocess.Popen(
-                argv, env=child_env(name, profile.url, profile.token), stdout=fh,
+                argv, env=child_env(name, profile.url, profile.token), cwd=profile.cwd or None,
+                stdout=fh,
                 stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True,
             )
         typer.echo(f"supervise: resumed {name} pid={self.running[name].pid}")

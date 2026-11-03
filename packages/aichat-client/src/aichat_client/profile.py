@@ -54,13 +54,17 @@ class Profile:
     url: str
     token: str
     title: str = ""  # session (namespace) title, set by `aichat session start`
+    cwd: str = ""  # working directory for the agent's process, set by `aichat agent spawn --cwd`
 
 
 def save_profile(profile: Profile) -> Path:
     path = profile_path(profile.name)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     data = json.dumps(
-        {"name": profile.name, "url": profile.url, "token": profile.token, "title": profile.title}
+        {
+            "name": profile.name, "url": profile.url, "token": profile.token,
+            "title": profile.title, "cwd": profile.cwd,
+        }
     )
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as fh:
@@ -75,7 +79,8 @@ def load_profile(name: str) -> Profile | None:
         return None
     data = json.loads(path.read_text())
     return Profile(
-        name=data["name"], url=data["url"], token=data["token"], title=data.get("title", "")
+        name=data["name"], url=data["url"], token=data["token"], title=data.get("title", ""),
+        cwd=data.get("cwd", ""),
     )
 
 

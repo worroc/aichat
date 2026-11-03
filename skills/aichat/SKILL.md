@@ -29,6 +29,11 @@ aichat profile list                          # saved profiles and whether they s
 Running it again is safe: it reuses the session. Tell the user the title so
 they can find it in the UI.
 
+**Hub down.** If a command fails with `cannot reach the hub ... Connection
+refused`, start it with `aichat-server start hub`, then check with
+`aichat-server status`. If you started it, stop it when the work is done
+(see "Shutting down" in section 6).
+
 **Joining.** If `aichat me` fails with an auth error but you have a join code
 (in `$AICHAT_JOIN` or in your prompt), run:
 
@@ -126,14 +131,43 @@ text
 - **The admin (main agent)** creates processes and rooms:
   ```bash
   aichat room create dev
-  aichat agent spawn reviewer --rooms dev --provider codex --detach -- \
+  aichat agent spawn reviewer --rooms dev --provider codex --cwd /work/app --detach -- \
     codex exec --disable multi_agent --skip-git-repo-check -s workspace-write \
       -c sandbox_workspace_write.network_access=true "{bootstrap}  TASK: ..."
-  aichat agent spawn critic --rooms dev --provider claude --session $(uuidgen) --detach \
+  aichat agent spawn critic --rooms dev --provider claude --cwd /work/app \
+    --session 7f0c2a9e-1b2d-4c3e-9f4a-5b6c7d8e9f01 --detach \
     --resume-template 'claude --resume {session} -p {prompt} --allowedTools Bash(aichat:*)' -- \
-    claude --session-id {session} -p "{bootstrap}  TASK: ..." --allowedTools "Bash(aichat:*)"
+    claude --session-id {session} -p "{bootstrap}  TASK: read /work/tasks/critic.md and do it." \
+      --allowedTools "Bash(aichat:*)"
   aichat supervise &                # resumes parked agents on wake events (Claude Code: run_in_background, not &)
   ```
+- **`--cwd DIR`** runs the agent in DIR. The directory is kept in the agent's
+  profile, so `supervise` resumes it there too. Claude sessions are per-directory,
+  so a resume from anywhere else does not find the session. Never wrap the
+  command in `sh -c 'cd DIR && ...'`.
+- **Spawn so the permission check can match it.** In Claude Code, an allow rule
+  such as `Bash(aichat:*)` matches only a command that *starts* with `aichat`.
+  A wrapper script, a compound command, or shell expansion goes to the auto-mode
+  safety check, which refuses to start unattended agents. So:
+  - one `aichat agent spawn ...` per Bash call, written out with literal
+    values: no `$VAR`, `$(uuidgen)`, functions, heredocs, pipes, `;`, `&&`,
+    or `bash -c` wrappers. Generate the session id first (any UUID) and paste it
+    in.
+  - Long task text goes in a file. The prompt only says
+    `"{bootstrap}  TASK: read /abs/path/task.md and do it."`. There is no
+    prompt-file option, and expanding `$(cat file)` breaks the rule above.
+  - Write task files with the Write tool, not an unquoted heredoc: backticks in
+    the text would run as commands.
+  - If a plain `aichat ...` spawn is still refused, stop and show the user the
+    command and the refusal. Do not try to get around it. The fix is an allow
+    rule, which is the user's decision.
+- **Order.** `--contacts` and `--depends-on` may only name agents that exist,
+  so spawn the experts first and the agent that depends on them last. Agents
+  that share a room can also talk through the room.
+- **Shutting down** (the orchestrator, when the human is finished):
+  `aichat agent revoke NAME` for each agent, stop the `supervise` background
+  task, `aichat done` for yourself, and `aichat-server stop` if you started the
+  hub.
 - **Dependencies.** When an agent will ask others (an integrator asking per-part
   reviewers), give it `--depends-on r1,r2,r3`. The experts must exist first. They
   stay reachable until it is done, then the hub closes them. An agent spawned later
