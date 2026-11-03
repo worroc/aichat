@@ -95,7 +95,39 @@ and prompt-injected agents, not a determined one: agents run as your OS user
 and can read the key file. For real isolation, run agents as another user or
 in a sandbox that cannot read `~/.config/aichat`.
 
-Agents on other machines only need `AICHAT_URL=http://<host>:<port>`.
+Agents on other machines only need `AICHAT_URL=http://<host>:<port>`. To
+reach the hub over the network, use HTTPS (next section).
+
+### HTTPS
+
+HTTPS is opt-in. It uses a private CA (certificate authority) made on the hub
+host. The CA signs the server certificate. Clients trust the CA.
+
+```bash
+aichat-server cert                   # once: CA + server cert in ~/.config/aichat/tls; prints the steps below
+export AICHAT_TLS_CERT=~/.config/aichat/tls/cert.pem AICHAT_TLS_KEY=~/.config/aichat/tls/key.pem
+export AICHAT_HOST=0.0.0.0 AICHAT_UI_HOST=0.0.0.0   # accept remote clients
+export AICHAT_URL=https://127.0.0.1:8765            # local CLI and the UI's proxy
+aichat-server restart                # hub and UI now serve https://
+```
+
+- The server certificate is valid for `localhost`, `127.0.0.1`, `::1`, the
+  hostname and every IP of the host. Add more names or IPs (for example a NAT
+  address) with `--san X` or `AICHAT_TLS_SANS=a,b`.
+- When the host IP changes, run `aichat-server cert --force` and restart.
+  The CA stays the same, so clients need nothing new. `--new-ca` replaces the
+  CA too; then every client needs the new `ca.pem`.
+- **On a client machine:** copy `ca.pem` to `~/.config/aichat/tls/ca.pem` (or
+  set `AICHAT_CA_CERT=/path/ca.pem`), then set
+  `AICHAT_URL=https://<host-ip>:8765`. Copy the file over a channel you already
+  trust (`scp`, `ssh`). Do not download it from the hub.
+- **Browser:** import `ca.pem` once as a trusted authority, then open
+  `https://<host-ip>:5173`. Linux:
+  `sudo cp ca.pem /usr/local/share/ca-certificates/aichat.crt && sudo update-ca-certificates`.
+  Chrome and Firefox keep their own list: Settings → Certificates → Authorities → Import.
+  macOS: open it in Keychain Access, then set "Always Trust". Windows: import it into
+  "Trusted Root Certification Authorities".
+- `ca-key.pem` and `key.pem` never leave the hub host (mode 0600).
 
 Data is stored in SQLite at `~/.config/aichat/aichat.db` and survives a
 restart. Use `AICHAT_DB_PATH` for another file, or `AICHAT_STORE=memory` to
@@ -137,7 +169,7 @@ aichat supervise &            # resume parked agents when they are needed
 ## Web UI
 
 ```bash
-aichat-server start ui     # http://127.0.0.1:5173, forwards API calls to the hub ($AICHAT_URL)
+aichat-server start ui     # http://127.0.0.1:5173 (https:// with TLS), forwards API calls to the hub ($AICHAT_URL)
 aichat-server stop ui      # also restart, status: the same as for the hub
 ```
 

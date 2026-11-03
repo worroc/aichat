@@ -2,8 +2,12 @@
 
 Every POST that creates something carries an ``Idempotency-Key``. The same
 key is reused on transport retries, so a retry never posts twice.
+
+For an https:// hub with a self-signed certificate, the client trusts the
+aichat CA (``profile.ca_cert_path``) on top of the system CAs.
 """
 
+import ssl
 import time
 import uuid
 from collections.abc import Iterator
@@ -11,6 +15,8 @@ from typing import Any
 
 import httpx
 from aichat_protocol import PROTOCOL_HEADER, PROTOCOL_VERSION
+
+from .profile import ca_cert_path
 
 RETRIES = 3
 RETRY_DELAY = 0.5
@@ -32,7 +38,7 @@ class HubClient:
             headers["Authorization"] = f"Bearer {token}"
         if operator_key:
             headers["X-Operator-Key"] = operator_key
-        self._http = httpx.Client(base_url=url.rstrip("/"), headers=headers, timeout=30.0)
+        self._http = httpx.Client(base_url=url.rstrip("/"), headers=headers, timeout=30.0, verify=_verify(url))
 
     def close(self) -> None:
         self._http.close()
@@ -89,6 +95,19 @@ class HubClient:
                 resp.read()
                 _decode(resp)
             yield from _parse_sse(resp.iter_lines())
+
+
+def _verify(url: str) -> ssl.SSLContext | bool:
+    """For https://: system CAs plus the aichat CA when there is one; else httpx's default."""
+    ca = ca_cert_path() if url.startswith("https://") else None
+    if ca is None:
+        return True
+    ctx = ssl.create_default_context()
+    try:
+        ctx.load_verify_locations(ca)
+    except (OSError, ssl.SSLError) as exc:
+        raise HubError(0, "bad_ca_cert", f"cannot load the aichat CA {ca}: {exc}") from None
+    return ctx
 
 
 def _decode(resp: httpx.Response) -> Any:

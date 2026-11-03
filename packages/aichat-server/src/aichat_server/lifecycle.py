@@ -23,13 +23,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import startlog
+from . import startlog, tls as tls_files
 
 PROBE_TIMEOUT = 2.0
 STOP_TIMEOUT = 30.0
 POLL = 0.2
 DEFAULT_LOG_DIR = "/var/log/aichat"
-_NO_PROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+_NO_PROXY = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=tls_files.probe_context())
+)
 
 
 class LifecycleError(Exception):
@@ -48,10 +50,15 @@ class Service:
     relaunch: Sequence[str]  # command that runs this service with --foreground
     start_timeout: float = 30.0
     before_start: Callable[[Path], None] | None = None  # runs before detaching; gets the log path
+    tls: bool = False  # serves HTTPS
+
+    @property
+    def scheme(self) -> str:
+        return "https" if self.tls else "http"
 
     @property
     def url(self) -> str:
-        return f"http://{self.host}:{self.port}"
+        return f"{self.scheme}://{_url_host(self.host)}:{self.port}"
 
     @property
     def log_file(self) -> Path:
@@ -65,18 +72,23 @@ def hub_says_ok(body: bytes) -> bool:
         return False
 
 
-def _probe_url(host: str, port: int, path: str) -> str:
+def _url_host(host: str) -> str:
+    return f"[{host}]" if ":" in host else host
+
+
+def _probe_url(svc: Service) -> str:
+    host = svc.host
     if host in {"", "0.0.0.0"}:
         host = "127.0.0.1"
     elif host == "::":
         host = "::1"
-    return f"http://{f'[{host}]' if ':' in host else host}:{port}{path}"
+    return f"{svc.scheme}://{_url_host(host)}:{svc.port}{svc.probe_path}"
 
 
 def probe(svc: Service) -> str:
     """"ours" if the service answers there, "free" if nothing listens, "busy" if another program does."""
     try:
-        with _NO_PROXY.open(_probe_url(svc.host, svc.port, svc.probe_path), timeout=PROBE_TIMEOUT) as resp:
+        with _NO_PROXY.open(_probe_url(svc), timeout=PROBE_TIMEOUT) as resp:
             if svc.is_ours(resp.read()):
                 return "ours"
     except urllib.error.URLError as exc:

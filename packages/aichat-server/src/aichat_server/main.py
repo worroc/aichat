@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import lifecycle
+from . import lifecycle, tls
 from .api import errors
 from .api.deps import TokenBucket
 from .api.routes_agents import router as agents_router
@@ -85,12 +85,23 @@ GRACEFUL_SHUTDOWN = 5  # seconds open requests (long-polls, SSE) get before they
 def serve(settings: Settings) -> None:
     """Run the hub attached to this process (the foreground part of `aichat-server start hub`)."""
     logging.basicConfig(level=logging.INFO)
+    _check_tls(settings)
+    use_tls = tls.enabled(settings.tls_cert, settings.tls_key)
     uvicorn.run(
         create_app(settings),
         host=settings.host,
         port=settings.port,
         timeout_graceful_shutdown=GRACEFUL_SHUTDOWN,
+        ssl_certfile=str(Path(settings.tls_cert).expanduser()) if use_tls else None,
+        ssl_keyfile=str(Path(settings.tls_key).expanduser()) if use_tls else None,
     )
+
+
+def _check_tls(settings: Settings) -> None:
+    try:
+        tls.check(settings.tls_cert, settings.tls_key)
+    except tls.TlsError as exc:
+        raise lifecycle.LifecycleError(str(exc)) from None
 
 
 def hub_service(settings: Settings) -> lifecycle.Service:
@@ -103,4 +114,6 @@ def hub_service(settings: Settings) -> lifecycle.Service:
         is_ours=lifecycle.hub_says_ok,
         port_env="AICHAT_PORT",
         relaunch=[sys.executable, "-m", "aichat_server.control", "start", "hub", "--foreground"],
+        tls=bool(settings.tls_cert),
+        before_start=lambda _log: _check_tls(settings),
     )

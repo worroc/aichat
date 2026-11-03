@@ -1,4 +1,5 @@
-"""`aichat-server`: start, stop, restart and show the status of the hub and the UI.
+"""`aichat-server`: start, stop, restart and show the status of the hub and the UI;
+`aichat-server cert` makes the HTTPS certificates (`tls.py`).
 
 Like `cong`: each subcommand takes service names (`hub`, `ui`); no names means
 all of them. The per-service logic lives in `lifecycle.py`.
@@ -11,12 +12,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
-from . import lifecycle, main, startlog, ui_dev
+from . import lifecycle, main, startlog, tls, ui_dev
 from .config import Settings
 
 HELP = """services:
-  hub   the chat hub (FastAPI), http://127.0.0.1:8765
-  ui    the operator UI (Vite dev server), http://127.0.0.1:5173
+  hub   the chat hub (FastAPI), http://127.0.0.1:8765 (https:// with TLS)
+  ui    the operator UI (Vite dev server), http://127.0.0.1:5173 (https:// with TLS)
 
 settings (environment variables):
   AICHAT_HOST, AICHAT_PORT        where the hub listens (127.0.0.1, 8765)
@@ -29,6 +30,10 @@ settings (environment variables):
   AICHAT_UI_DIR                   the ui/ folder of the aichat repo (found next to this package)
   AICHAT_UI_PID_FILE              UI pid file (~/.config/aichat/aichat-server-ui-{port}.pid)
   AICHAT_LOG_DIR                  log folder (/var/log/aichat); files: <name>-<port>.log
+  AICHAT_TLS_CERT, AICHAT_TLS_KEY HTTPS for hub and UI when both are set (made by `aichat-server cert`)
+  AICHAT_CA_CERT                  the CA the UI trusts for an https:// hub (~/.config/aichat/tls/ca.pem)
+  AICHAT_TLS_DIR                  where `cert` writes its files (~/.config/aichat/tls)
+  AICHAT_TLS_SANS                 extra names/IPs for `cert`, comma-separated
   more hub limits: see aichat_server/config.py
 
 examples:
@@ -38,6 +43,8 @@ examples:
   aichat-server stop ui                # graceful stop
   aichat-server restart                # graceful stop, then start
   aichat-server start hub --foreground # attached to this shell
+  aichat-server cert                   # make the CA and server cert once; prints how to use them
+  aichat-server cert --force --san 203.0.113.7   # reissue the server cert (new IP); the CA is kept
 """
 ORDER = ("hub", "ui")  # start order; stop runs in reverse
 COLORS = {"up": "32", "down": "31", "busy": "33"}
@@ -64,7 +71,7 @@ def _parser() -> argparse.ArgumentParser:
         epilog=HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    sub = parser.add_subparsers(dest="action", metavar="{start,stop,restart,status}")
+    sub = parser.add_subparsers(dest="action", metavar="{start,stop,restart,status,cert}")
     for action, text in (
         ("start", "start services in the background; report the ones already running"),
         ("stop", "stop services gracefully"),
@@ -75,7 +82,27 @@ def _parser() -> argparse.ArgumentParser:
         cmd.add_argument("names", nargs="*", metavar="SERVICE", help="hub, ui (default: all)")
         if action == "start":
             cmd.add_argument("--foreground", action="store_true", help="run one service attached to this shell")
+    _cert_parser(sub)
     return parser
+
+
+def _cert_parser(sub) -> None:
+    text = "make the HTTPS CA and server certificate (kept if they exist); print how to use them"
+    cmd = sub.add_parser("cert", help=text, description=text)
+    cmd.add_argument("--force", action="store_true", help="reissue the server cert (new IPs); keeps the CA")
+    cmd.add_argument("--new-ca", action="store_true", help="also replace the CA; every client needs the new ca.pem")
+    cmd.add_argument("--san", action="append", default=[], metavar="NAME_OR_IP",
+                     help="extra name or IP for the cert, e.g. a NAT address (repeatable; also $AICHAT_TLS_SANS)")
+
+
+def _cert(args: argparse.Namespace) -> None:
+    folder = tls.tls_dir()
+    try:
+        made = tls.make(folder, [*tls.extra_sans_from_env(), *args.san], force=args.force, new_ca=args.new_ca)
+    except (OSError, tls.TlsError) as exc:
+        print(f"aichat-server cert: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    print(tls.report(folder, made, Settings().port, ui_dev.UiSettings().port))
 
 
 def _selected(names: list[str], action: str) -> list[str]:
@@ -155,6 +182,9 @@ def run(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.action is None:
         parser.print_help()
+        return
+    if args.action == "cert":
+        _cert(args)
         return
     unknown = set(args.names) - set(ORDER)
     if unknown:

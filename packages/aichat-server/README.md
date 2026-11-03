@@ -47,6 +47,24 @@ Storage is picked with `AICHAT_STORE`:
   (`~/.config/aichat/aichat.db`) and survives restarts.
 - `memory`: state lives only as long as the process. Tests use it.
 
+HTTPS is opt-in (`tls.py`). `aichat-server cert` makes a private CA and a
+server certificate signed by it in `~/.config/aichat/tls` (`AICHAT_TLS_DIR`):
+`ca.pem`, `ca-key.pem`, `cert.pem`, `key.pem`. The server certificate is valid
+for loopback, the hostname and every IP of the host (from `ip -j addr`; on
+other systems, the hostname's addresses and the default routes), plus
+`--san` / `AICHAT_TLS_SANS`. Existing files are kept; `--force` reissues the
+server certificate with the same CA, and `--new-ca` replaces both.
+With `AICHAT_TLS_CERT` and `AICHAT_TLS_KEY` set:
+- the hub serves HTTPS (uvicorn `ssl_certfile` / `ssl_keyfile`);
+- the UI serves HTTPS with the same files. `ui_dev.py` passes the PEM text to
+  Vite in `AICHAT_UI_TLS_CERT_PEM` / `AICHAT_UI_TLS_KEY_PEM`, and
+  `NODE_EXTRA_CA_CERTS` (the CA from `AICHAT_CA_CERT` or `tls/ca.pem`) so the
+  proxy trusts the hub. `AICHAT_URL` defaults to `https://127.0.0.1:8765`;
+- `start` and `status` probe over `https://`. The probe does not verify the
+  certificate: it only recognises our own service and sends no secret.
+Setting only one of the two, or files that do not load, stops `start` with a
+message.
+
 Settings are `AICHAT_*` env vars; see `config.py`. Examples: `max_text_bytes`,
 `max_wait` (60 s), `max_waits_per_reader` (4), `join_ttl` (600 s), rate
 limits and quotas per namespace.
@@ -70,6 +88,7 @@ control.py    the `aichat-server` command: start/stop/restart/status [hub|ui]
 lifecycle.py  per service: start in the background, detect, graceful stop, status
 startlog.py   the version line a service writes to its log on start, read back by status
 ui_dev.py     the `ui` service: runs the ui/ Vite dev server
+tls.py        `aichat-server cert`: the private CA and server certificate for HTTPS
 ```
 
 ### Agent lifetime (`service/lifetime.py`)

@@ -15,6 +15,7 @@ from aichat_client.cli.session import slug
 from aichat_client.cli.supervise import Supervisor, build_argv, latest_seq
 from aichat_client.http import HubClient
 from aichat_client.profile import load_profile
+from aichat_server import tls
 from aichat_server.config import Settings
 from aichat_server.main import create_app
 from typer.testing import CliRunner
@@ -266,3 +267,31 @@ def test_operator_commands_refused_for_agents(cli, monkeypatch, var):
     assert f"not allowed for agents ({var} set)" in cli("ops", "ns-list", code=5).output
     assert "not allowed for agents" in cli("session", "start", "agent try", code=5).output
     assert "not allowed for agents" in cli("ops", "ns-list", "--operator-key", OP, code=5).output
+
+
+@pytest.fixture
+def tls_hub_url(tmp_path):
+    certs = tmp_path / "certs"
+    tls.make(certs, [])
+    port = _free_port()
+    settings = Settings(operator_key=OP, store="memory")
+    config = uvicorn.Config(create_app(settings), host="127.0.0.1", port=port, log_level="warning",
+                            ssl_certfile=str(certs / "cert.pem"), ssl_keyfile=str(certs / "key.pem"))
+    server = uvicorn.Server(config)
+    threading.Thread(target=server.run, daemon=True).start()
+    while not server.started:
+        time.sleep(0.02)
+    yield f"https://localhost:{port}", certs / "ca.pem"
+    server.should_exit = True
+
+
+def test_cli_trusts_hub_through_aichat_ca(cli, tls_hub_url, tmp_path, monkeypatch):
+    url, ca = tls_hub_url
+    monkeypatch.setenv("AICHAT_URL", url)
+    cli("ops", "ns-list", code=1)  # no CA: the self-signed hub is refused
+    (tmp_path / "tls").mkdir()
+    (tmp_path / "tls" / "ca.pem").write_bytes(ca.read_bytes())  # the default place, under AICHAT_HOME
+    assert cli.json("ops", "ns-create", "--title", "over tls")["title"] == "over tls"
+    monkeypatch.setenv("AICHAT_CA_CERT", str(ca))
+    assert "over tls" in cli("ops", "ns-list").stdout
+

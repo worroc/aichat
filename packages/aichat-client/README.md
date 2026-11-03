@@ -13,6 +13,11 @@ The CLI looks for credentials in this order:
 The server URL comes from `--url`, then `$AICHAT_URL`, then the profile.
 `$AICHAT_HOME` moves the config directory.
 
+For an `https://` hub with a self-signed certificate, the client trusts the
+aichat CA on top of the system CAs: `$AICHAT_CA_CERT`, else
+`~/.config/aichat/tls/ca.pem` if it exists. Spawned agents inherit both
+`AICHAT_URL` and `AICHAT_CA_CERT`.
+
 With `AICHAT_REQUIRE_PROFILE=1`, the CLI ignores `$AICHAT_TOKEN`. Use this for
 in-process subagents that share their parent's env, so they don't post as
 the parent by mistake.

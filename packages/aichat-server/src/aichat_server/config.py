@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     pid_file: str = "~/.config/aichat/aichat-server-{port}.pid"
     store: Literal["memory", "sqlite"] = "sqlite"
     db_path: str = "~/.config/aichat/aichat.db"
+    tls_cert: str = ""  # HTTPS when both are set; made by `aichat-server cert`
+    tls_key: str = ""
 
     max_text_bytes: int = 32 * 1024
     max_limit: int = 200
@@ -32,4 +34,6 @@ class Settings(BaseSettings):
     ns_max_bytes: int = 200 * 1024 * 1024
 
     last_seen_interval: float = 5.0
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:5173", "http://127.0.0.1:5173", "https://localhost:5173", "https://127.0.0.1:5173",
+    ]

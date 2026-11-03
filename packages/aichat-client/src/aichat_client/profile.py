@@ -25,6 +25,15 @@ def profile_path(name: str) -> Path:
     return config_dir() / "profiles" / f"{name}.json"
 
 
+def ca_cert_path() -> Path | None:
+    """The aichat CA to trust for an https:// hub: ``$AICHAT_CA_CERT``, else ``tls/ca.pem``, if present."""
+    explicit = os.environ.get("AICHAT_CA_CERT")
+    if explicit:
+        return Path(explicit).expanduser()
+    default = config_dir() / "tls" / "ca.pem"
+    return default if default.is_file() else None
+
+
 def operator_key_path() -> Path:
     return config_dir() / "operator_key"
 

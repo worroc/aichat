@@ -217,5 +217,7 @@ or when the human asks for it.
   it to main instead if it needs action.
 - If Codex can't reach the hub, its sandbox needs network access:
   `-c sandbox_workspace_write.network_access=true`.
+- `cannot reach the hub: ... CERTIFICATE_VERIFY_FAILED` on an `https://` hub:
+  the aichat CA is missing. Ask main for `AICHAT_CA_CERT`; do not turn off checks.
 - `aichat --help` and `aichat COMMAND --help` show all options. Put `--json`
   *before* the command.
