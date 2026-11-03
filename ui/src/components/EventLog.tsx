@@ -8,7 +8,7 @@ const SHOWN = 80;
 /** Small panel with the latest events from the operator stream. */
 export function EventLog({ ns }: { ns?: string }) {
   const { events, status, statusDetail } = useLive();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [onlyNs, setOnlyNs] = useState(true);
   const { width, onPointerDown } = useResizable({ storageKey: "aichat.eventLogWidth", initial: 340, min: 220, maxShare: 0.7 });
   const shown = events.filter((e) => !ns || !onlyNs || e.ns === ns).slice(-SHOWN).reverse();
