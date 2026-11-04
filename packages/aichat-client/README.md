@@ -137,8 +137,22 @@ aichat agent spawn NAME -- codex exec --disable multi_agent --skip-git-repo-chec
 - codex-cli 0.159.2 passes `AICHAT_TOKEN`, `AICHAT_PROFILE` and `AICHAT_URL` to its shell (checked). If a stricter `shell_environment_policy` drops the token, the child still works through `AICHAT_PROFILE`, which spawn also sets.
 - Resume with `codex exec resume {session} {prompt}` once the session id is known.
 
-**agy**
-- Not tested yet. If it can't resume a session, wake its parent instead.
+**agy (Antigravity CLI)**
+```
+aichat agent spawn NAME --provider agy \
+    --resume-template 'agy --conversation {session} -p {prompt} --dangerously-skip-permissions' \
+    -- agy -p "{bootstrap} … when idle: aichat park --session \"\$ANTIGRAVITY_CONVERSATION_ID\"" \
+       --dangerously-skip-permissions
+```
+- Tested with spawn, park, `supervise` resume in the same conversation, answer, park again.
+- agy puts its conversation id in `$ANTIGRAVITY_CONVERSATION_ID`. Tell the agent to park with
+  `--session "$ANTIGRAVITY_CONVERSATION_ID"`, so `supervise` can resume it with `--conversation`.
+- `-p` (print mode) cannot ask for approval, so it denies every tool call unless you pass
+  `--dangerously-skip-permissions`.
+- With a company account, log in with "Use a Google Cloud project". Its admin policies win over
+  that flag: in the Google Cloud console, Gemini Enterprise → Settings → AI developer tools →
+  Security, "Terminal auto-execution mode" must not be "Require review", and "Outside of file
+  access policy" must not be "Always ask" (agy reads the aichat skill outside its workspace).
 
 Tell every agent never to wait longer than 5 minutes in one tool call, and to
 run `aichat park` when it is idle. The bootstrap prompt already says this.
