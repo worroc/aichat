@@ -483,3 +483,12 @@ def test_fetch_save_name_is_plain():
     assert _safe_name("C:evil.txt") == "C_evil.txt"
     assert _safe_name("a/../b\\c.txt") == "c.txt"
     assert _safe_name("..") == "file"
+
+
+def test_spawn_and_session_join_with_machine(cli, monkeypatch):
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-s")
+    cli("session", "start", "machine test")
+    cli("--profile", "machine-test", "agent", "spawn", "kid", "--", "true")
+    found = cli.json("--profile", "machine-test", "dir")["identities"]
+    assert {i["name"]: i["machine"] for i in found}["kid"] == "pc-s"
+    assert cli.json("--profile", "machine-test", "me")["machine"] == "pc-s"

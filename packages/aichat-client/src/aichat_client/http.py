@@ -95,6 +95,10 @@ class HubClient:
     def download(self, path: str) -> bytes:
         return self.request("GET", path, raw=True, timeout=UPLOAD_TIMEOUT)
 
+    def join(self, code: str) -> Any:
+        """Trade a join code for a token; tells the hub which machine the agent runs on."""
+        return self.post("/join", {"code": code, "machine": machine_id()})
+
     def post(self, path: str, body: Any = None) -> Any:
         return self.request("POST", path, json=body)
 

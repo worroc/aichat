@@ -42,7 +42,7 @@ def _titled(ops: HubClient, title: str) -> list[dict]:
 def _create(o: Options, ops: HubClient, title: str, name: str, provider: str, profile_name: str) -> Profile:
     created = ops.post("/ops/namespaces", {"title": title, "admin_name": name, "provider": provider})
     url = o.credentials().url
-    joined = HubClient(url).post("/join", {"code": created["join_code"]})
+    joined = HubClient(url).join(created["join_code"])
     profile = Profile(name=profile_name, url=url, token=joined["token"], title=title)
     save_profile(profile)
     return profile

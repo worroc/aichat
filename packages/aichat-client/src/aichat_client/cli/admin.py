@@ -142,7 +142,7 @@ def spawn(
     created = _create(o, name, name_prefix, kind, fields)
     prompt = bootstrap.render(created, provider)
     url = o.credentials().url
-    joined = HubClient(url).post("/join", {"code": created["join_code"]})
+    joined = HubClient(url).join(created["join_code"])
     save_profile(Profile(name=created["name"], url=url, token=joined["token"], cwd=workdir))
     env = child_env(created["name"], url, joined["token"], prompt)
     values = {"{name}": created["name"], "{session}": session or "", "{bootstrap}": prompt}

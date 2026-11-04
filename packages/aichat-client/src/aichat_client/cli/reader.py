@@ -9,7 +9,6 @@ import typer
 
 from .. import envelope
 from ..http import HubClient
-from ..machine import machine_id
 from ..profile import Profile, save_profile
 from .common import (
     attach_refs,
@@ -56,7 +55,7 @@ def join(
     if not code:
         fail("no join code: pass it or set AICHAT_JOIN")
     url = o.credentials().url
-    body = HubClient(url).post("/join", {"code": code, "machine": machine_id()})
+    body = HubClient(url).join(code)
     name = o.profile or os.environ.get("AICHAT_PROFILE") or body["name"]
     path = save_profile(Profile(name=name, url=url, token=body["token"]))
     hint = "" if os.environ.get("AICHAT_PROFILE") == name else f"\nuse: export AICHAT_PROFILE={name}  (or --profile {name})"
