@@ -278,6 +278,15 @@ def test_operator_key_from_file(cli, tmp_path, monkeypatch):
     cli("ops", "ns-list")
 
 
+def test_operator_key_dev_mode_reads_only_the_dev_file(cli, tmp_path, monkeypatch):
+    monkeypatch.delenv("AICHAT_OPERATOR_KEY")
+    monkeypatch.setenv("AICHAT_DEV", "1")
+    (tmp_path / "operator_key").write_text(OP + "\n")
+    assert "operator_key.dev" in cli("ops", "ns-list", code=1).output
+    (tmp_path / "operator_key.dev").write_text(OP + "\n")
+    cli("ops", "ns-list")
+
+
 def test_slug():
     assert slug("Shop API: fix login bug!") == "shop-api-fix-login-bug"
     assert slug("***") == ""

@@ -88,6 +88,11 @@ The operator key comes from `$AICHAT_OPERATOR_KEY`, else from
 `~/.config/aichat/operator_key`. The server, `aichat ops`, `aichat session`
 and the UI login all use it.
 
+For a local test run, set `AICHAT_DEV=1` for both the hub and the CLI. They
+then use `~/.config/aichat/operator_key.dev` and a separate database
+(`aichat-dev.db`), so the real key does not work on the test hub. Set it in the
+shell of the test run, not in an `aichat.env` that points at a real hub.
+
 The key is for the human only. Spawned and resumed agents do not inherit
 `$AICHAT_OPERATOR_KEY`, and `aichat ops` / `aichat session` refuse to run when
 `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set (exit code 5). This stops mistakes

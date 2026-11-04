@@ -24,8 +24,10 @@ HELP = """services:
 settings (environment variables):
   AICHAT_HOST, AICHAT_PORT        where the hub listens (127.0.0.1, 8765)
   AICHAT_STORE                    sqlite (default, kept on disk) or memory (lost on stop)
-  AICHAT_DB_PATH                  SQLite file (~/.config/aichat/aichat.db)
-  AICHAT_OPERATOR_KEY             operator key; else read from ~/.config/aichat/operator_key
+  AICHAT_DEV                      1 = local test hub: uses operator_key.dev and aichat-dev.db
+  AICHAT_DB_PATH                  SQLite file (~/.config/aichat/aichat.db; aichat-dev.db in dev)
+  AICHAT_OPERATOR_KEY             operator key; else read from AICHAT_OPERATOR_KEY_FILE
+  AICHAT_OPERATOR_KEY_FILE        (~/.config/aichat/operator_key; operator_key.dev in dev)
   AICHAT_PID_FILE                 hub pid file (~/.config/aichat/aichat-server-{port}.pid)
   AICHAT_UI_HOST, AICHAT_UI_PORT  where the UI listens (127.0.0.1, 5173)
   AICHAT_URL                      the hub the UI talks to (http://127.0.0.1:8765)
@@ -46,6 +48,7 @@ examples:
   aichat-server stop ui                # graceful stop
   aichat-server restart                # graceful stop, then start
   aichat-server start hub --foreground # attached to this shell
+  AICHAT_DEV=1 aichat-server start     # local test hub: dev key and dev db, never the real key
   aichat-server cert                   # make the CA and server cert once; prints how to use them
   aichat-server cert --force --san 203.0.113.7   # reissue the server cert (new IP); the CA is kept
 """

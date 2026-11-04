@@ -44,6 +44,8 @@ def create_app(
     notifier: Notifier | None = None,
 ) -> FastAPI:
     settings = _with_operator_key(settings or Settings())
+    if settings.dev:
+        log.info("dev mode: operator key file %s, db %s", settings.operator_key_file, settings.db_path)
     store = store or make_store(settings)
     notifier = notifier or MemoryNotifier()
 

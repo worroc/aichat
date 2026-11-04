@@ -59,7 +59,7 @@ the parent by mistake.
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
-| `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`). Refused (exit 5) when `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set, as in an agent; `session start` too; `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
+| `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`; `operator_key.dev` with `AICHAT_DEV=1`). Refused (exit 5) when `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set, as in an agent; `session start` too; `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
 
 `--json` (before the command) prints raw JSON.
 

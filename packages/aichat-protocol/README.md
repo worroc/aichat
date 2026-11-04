@@ -9,6 +9,7 @@ on Pydantic.
 | `errors.py` | Stable error codes, with their HTTP status and CLI exit code |
 | `names.py` | Name rules: the regex, reserved names, and the confusable "skeleton" check |
 | `envfile.py` | The shared settings file `~/.config/aichat/aichat.env`, read by `aichat-server` and `aichat`; the environment wins |
+| `devmode.py` | `AICHAT_DEV=1`: the dev key file `operator_key.dev` and db `aichat-dev.db`, shared by `aichat-server` and `aichat` |
 | `__init__.py` | `PROTOCOL_VERSION` and the `X-Aichat-Protocol` header name |
 
 ## Error envelope

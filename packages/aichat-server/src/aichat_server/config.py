@@ -1,20 +1,25 @@
 """Server settings, read from ``AICHAT_*`` environment variables."""
 
-from typing import Literal
+from typing import Literal, Self
 
+from aichat_protocol import devmode
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+CONFIG_DIR = "~/.config/aichat"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AICHAT_")
 
+    dev: bool = False  # AICHAT_DEV=1: a local test hub with its own key and db (aichat_protocol.devmode)
     operator_key: str = ""
-    operator_key_file: str = "~/.config/aichat/operator_key"  # used when operator_key is empty
+    operator_key_file: str = ""  # used when operator_key is empty; default operator_key[.dev]
     host: str = "127.0.0.1"
     port: int = 8765
     pid_file: str = "~/.config/aichat/aichat-server-{port}.pid"
     store: Literal["memory", "sqlite"] = "sqlite"
-    db_path: str = "~/.config/aichat/aichat.db"
+    db_path: str = ""  # default aichat.db, or aichat-dev.db in dev mode
     tls_cert: str = ""  # HTTPS when both are set; made by `aichat-server cert`
     tls_key: str = ""
 
@@ -37,3 +42,12 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:5173", "http://127.0.0.1:5173", "https://localhost:5173", "https://127.0.0.1:5173",
     ]
+
+    @model_validator(mode="after")
+    def _dev_defaults(self) -> Self:
+        """Fill the key file and db path that depend on dev mode, unless set explicitly."""
+        if not self.operator_key_file:
+            self.operator_key_file = f"{CONFIG_DIR}/{devmode.operator_key_name(self.dev)}"
+        if not self.db_path:
+            self.db_path = f"{CONFIG_DIR}/{devmode.db_name(self.dev)}"
+        return self

@@ -158,3 +158,14 @@ def test_operator_key_read_from_file(tmp_path):
     assert app.state.settings.operator_key == "from-file"
     env_wins = create_app(Settings(operator_key="env", operator_key_file=str(key_file), store="memory"))
     assert env_wins.state.settings.operator_key == "env"
+
+
+def test_dev_mode_uses_dev_key_file_and_db():
+    real = Settings(store="memory")
+    assert real.operator_key_file.endswith("/operator_key")
+    assert real.db_path.endswith("/aichat.db")
+    dev = Settings(dev=True, store="memory")
+    assert dev.operator_key_file.endswith("/operator_key.dev")
+    assert dev.db_path.endswith("/aichat-dev.db")
+    explicit = Settings(dev=True, operator_key_file="/k", db_path="/d.db")
+    assert (explicit.operator_key_file, explicit.db_path) == ("/k", "/d.db")

@@ -15,7 +15,7 @@ from aichat_protocol.errors import ExitCode, exit_code_for
 
 from .. import envelope
 from ..http import HubClient, HubError
-from ..profile import Credentials, operator_key, resolve
+from ..profile import Credentials, operator_key, operator_key_path, resolve
 
 WAIT_CHUNK = 60.0
 AGENT_ENV = ("AICHAT_TOKEN", "AICHAT_PROFILE")  # set for every spawned or resumed agent
@@ -53,7 +53,7 @@ def operator_client(o: Options, key: str | None = None) -> HubClient:
     refuse_in_agent()
     key = operator_key(key)
     if not key:
-        fail("operator key required: --operator-key, $AICHAT_OPERATOR_KEY or ~/.config/aichat/operator_key")
+        fail(f"operator key required: --operator-key, $AICHAT_OPERATOR_KEY or {operator_key_path()}")
     return HubClient(resolve(o.url, None, None).url, operator_key=key)
 
 

@@ -10,6 +10,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from aichat_protocol import devmode
+
 DEFAULT_URL = "http://127.0.0.1:8765"
 
 
@@ -35,7 +37,8 @@ def ca_cert_path() -> Path | None:
 
 
 def operator_key_path() -> Path:
-    return config_dir() / "operator_key"
+    """``operator_key``, or ``operator_key.dev`` when ``AICHAT_DEV=1`` (a local test hub)."""
+    return config_dir() / devmode.operator_key_name(devmode.is_dev())
 
 
 def operator_key(explicit: str | None = None) -> str | None:

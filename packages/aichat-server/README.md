@@ -39,8 +39,15 @@ The pid is kept in `~/.config/aichat/<name>-<port>.pid` (`AICHAT_PID_FILE`,
 `AICHAT_UI_PID_FILE`). See `aichat-server --help` for all settings.
 
 The operator key comes from `AICHAT_OPERATOR_KEY`, else from
-`~/.config/aichat/operator_key`. If neither exists, a random key is generated
-and logged.
+`AICHAT_OPERATOR_KEY_FILE` (`~/.config/aichat/operator_key`). If neither
+exists, a random key is generated and logged.
+
+Dev mode (`AICHAT_DEV=1`) is for a local test hub. It reads
+`~/.config/aichat/operator_key.dev` and stores data in
+`~/.config/aichat/aichat-dev.db`, so the real operator key never opens it and
+test data never mixes with real data. Explicit `AICHAT_OPERATOR_KEY`,
+`AICHAT_OPERATOR_KEY_FILE` and `AICHAT_DB_PATH` still win. The rule lives in
+`aichat_protocol.devmode`, shared with the CLI.
 
 Storage is picked with `AICHAT_STORE`:
 - `sqlite` (default): data is kept in `AICHAT_DB_PATH`
