@@ -1,4 +1,4 @@
-import { opsApi, type ChannelOut, type HumanResponse } from "../api/client";
+import { opsApi, type ChannelOut, type HumanResponse, type OpsIdentityOut } from "../api/client";
 import { EventLog } from "../components/EventLog";
 import { ErrorBox } from "../components/ErrorBox";
 import { HumanPanel } from "../components/HumanPanel";
@@ -20,11 +20,35 @@ const SECTIONS: [Section, string][] = [
   ["audit", "Audit"],
 ];
 
-function ChannelLinks({ ns, title, channels, active }: { ns: string; title: string; channels: ChannelOut[]; active?: string }) {
+/** Humans first in "Direct": each opens the page with everything the human wrote or got. */
+function HumanLinks({ ns, humans, active }: { ns: string; humans: OpsIdentityOut[]; active?: string }) {
+  return (
+    <>
+      {humans.map((h) => (
+        <li key={h.name} className={h.name === active ? "active" : undefined}>
+          <a href={href({ page: "agent", ns, name: h.name })} title="all messages of this human">
+            <span className="clip">🧑 {h.name}</span>
+          </a>
+        </li>
+      ))}
+    </>
+  );
+}
+
+function ChannelLinks(props: {
+  ns: string;
+  title: string;
+  channels: ChannelOut[];
+  active?: string;
+  humans?: OpsIdentityOut[];
+  activeHuman?: string;
+}) {
+  const { ns, title, channels, active, humans = [] } = props;
   return (
     <section>
       <h4>{title}</h4>
       <ul className="nav">
+        <HumanLinks ns={ns} humans={humans} active={props.activeHuman} />
         {channels.map((c) => (
           <li key={c.id} className={c.id === active ? "active" : undefined}>
             <a href={href({ page: "channel", ns, channelId: c.id })}>
@@ -33,7 +57,7 @@ function ChannelLinks({ ns, title, channels, active }: { ns: string; title: stri
             </a>
           </li>
         ))}
-        {channels.length === 0 && <li className="muted small">none</li>}
+        {channels.length === 0 && humans.length === 0 && <li className="muted small">none</li>}
       </ul>
     </section>
   );
@@ -48,6 +72,8 @@ function Sidebar(props: {
 }) {
   const { route, channels } = props;
   const active = route.page === "channel" ? route.channelId : undefined;
+  const activeHuman = route.page === "agent" ? route.name : undefined;
+  const humans = props.agents.filter((a) => a.role === "human" && a.state !== "revoked");
   return (
     <nav className="sidebar">
       <a className="muted small" href={href({ page: "namespaces" })}>
@@ -64,7 +90,14 @@ function Sidebar(props: {
         ))}
       </ul>
       <ChannelLinks ns={route.ns} title="Rooms" channels={channels.filter((c) => c.kind === "room")} active={active} />
-      <ChannelLinks ns={route.ns} title="Direct" channels={channels.filter((c) => c.kind === "direct")} active={active} />
+      <ChannelLinks
+        ns={route.ns}
+        title="Direct"
+        channels={channels.filter((c) => c.kind === "direct")}
+        active={active}
+        humans={humans}
+        activeHuman={activeHuman}
+      />
       <HumanPanel ns={route.ns} human={props.human} setHuman={props.setHuman} agents={props.agents} />
     </nav>
   );

@@ -41,9 +41,16 @@ function Filters(props: {
   kind: string;
   setSender: (s: string) => void;
   setKind: (k: string) => void;
+  text: string;
+  setText: (t: string) => void;
+  newestFirst: boolean;
+  setNewestFirst: (v: boolean) => void;
+  shown: number;
+  total: number;
 }) {
   return (
     <div className="row wrap filters">
+      <input placeholder="filter by text" value={props.text} onChange={(e) => props.setText(e.target.value)} />
       <label>
         sender{" "}
         <select value={props.sender} onChange={(e) => props.setSender(e.target.value)}>
@@ -64,6 +71,12 @@ function Filters(props: {
           <option value="answer">answer</option>
         </select>
       </label>
+      <button className="link" onClick={() => props.setNewestFirst(!props.newestFirst)}>
+        {props.newestFirst ? "newest first ↓" : "oldest first ↑"}
+      </button>
+      <span className="muted small">
+        {props.shown} of {props.total}
+      </span>
     </div>
   );
 }
@@ -77,6 +90,8 @@ function merge(older: MessageOut[], latest: MessageOut[]): MessageOut[] {
 export function ChannelPage({ ns, channelId, channel, agents, human, version }: Props) {
   const [sender, setSender] = useState("");
   const [kind, setKind] = useState("");
+  const [text, setText] = useState("");
+  const [newestFirst, setNewestFirst] = useState(false); // a chat reads oldest first
   const [older, setOlder] = useState<{ messages: MessageOut[]; hasMore: boolean } | null>(null);
   const [olderError, setOlderError] = useState<unknown>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -93,26 +108,29 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
     setThreadId(null);
   }
 
-  const messages = merge(older?.messages ?? [], latest.data?.messages ?? []);
+  const loaded = merge(older?.messages ?? [], latest.data?.messages ?? []);
+  const needle = text.trim().toLowerCase();
+  const matching = loaded.filter((m) => m.text.toLowerCase().includes(needle));
+  const messages = newestFirst ? [...matching].reverse() : matching;
   const hasMore = older ? older.hasMore : (latest.data?.has_more ?? false);
 
   const loadOlder = async () => {
-    if (messages.length === 0) return;
+    if (loaded.length === 0) return;
     setOlderError(null);
     try {
-      const page = await opsApi.messages(ns, { ...filter, before_seq: messages[0].seq, limit: PAGE });
+      const page = await opsApi.messages(ns, { ...filter, before_seq: loaded[0].seq, limit: PAGE });
       setOlder({ messages: [...page.messages, ...(older?.messages ?? [])], hasMore: page.has_more });
     } catch (exc) {
       setOlderError(exc);
     }
   };
 
-  // Follow new messages at the bottom, but not when older pages were loaded.
+  // Oldest first: follow new messages at the bottom, but not when older pages were loaded.
   const end = useRef<HTMLDivElement>(null);
   const newest = latest.data?.messages.at(-1)?.id;
   useEffect(() => {
-    if (!older) end.current?.scrollIntoView({ block: "end" });
-  }, [newest, older]);
+    if (!older && !newestFirst) end.current?.scrollIntoView({ block: "end" });
+  }, [newest, older, newestFirst]);
 
   const senders = [...new Set([...agents.map((a) => a.name), ...(channel?.members ?? [])])].sort();
   const target = composerTarget(channelId, channel, human);
@@ -129,11 +147,23 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
               seq {channel.last_seq}
             </span>
           )}
-          <Filters senders={senders} sender={sender} kind={kind} setSender={setSender} setKind={setKind} />
+          <Filters
+            senders={senders}
+            sender={sender}
+            kind={kind}
+            setSender={setSender}
+            setKind={setKind}
+            text={text}
+            setText={setText}
+            newestFirst={newestFirst}
+            setNewestFirst={setNewestFirst}
+            shown={messages.length}
+            total={loaded.length}
+          />
         </header>
         <ErrorBox error={latest.error} />
         <ErrorBox error={olderError} onClose={() => setOlderError(null)} />
-        {hasMore && (
+        {hasMore && !newestFirst && (
           <button className="link" onClick={loadOlder}>
             load older messages
           </button>
@@ -144,10 +174,16 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
           ))}
         </ul>
         {!channel && !target && <p className="muted">channel not found</p>}
-        {channel && messages.length === 0 && !latest.loading && <p className="muted">no messages</p>}
+        {channel && loaded.length === 0 && !latest.loading && <p className="muted">no messages</p>}
+        {loaded.length > 0 && messages.length === 0 && <p className="muted">no message matches the filter</p>}
         {target && human && <Composer human={human} target={target} onPosted={latest.reload} />}
         {!human && channel?.kind === "room" && (
           <p className="muted small">Use "Act as human" in the sidebar to post here.</p>
+        )}
+        {hasMore && newestFirst && (
+          <button className="link" onClick={loadOlder}>
+            load older messages
+          </button>
         )}
         <div ref={end} />
       </div>
