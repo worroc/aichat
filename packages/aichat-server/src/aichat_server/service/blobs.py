@@ -16,7 +16,7 @@ from pathlib import PurePosixPath
 from aichat_protocol import models as wire
 from aichat_protocol.errors import ErrorCode
 
-from ..domain import Blob, DomainError, Ref, invalid, not_found
+from ..domain import Blob, DomainError, Message, Ref, invalid, not_found
 from ..security import Principal
 from .access import Access
 from .context import Ctx, now
@@ -81,9 +81,22 @@ class BlobService:
     async def download(self, p: Principal, message_id: str, blob_id: str) -> Blob:
         await self.ctx.identity(p)
         message, _, _ = await self.access.message(p, message_id)
+        return await self._attached(message, blob_id)
+
+    async def operator_download(self, ns_id: str, message_id: str, blob_id: str) -> Blob:
+        """For the operator UI: any message of the namespace, as the operator sees all of them."""
+        if await self.store.namespaces.get(ns_id) is None:
+            raise not_found("namespace")
+        message = await self.store.messages.get(ns_id, message_id)
+        if message is None:
+            raise not_found("message")
+        return await self._attached(message, blob_id)
+
+    async def _attached(self, message: Message, blob_id: str) -> Blob:
+        """The blob, only when this message points to it."""
         if blob_id not in {r.id for r in message.refs if r.is_blob}:
             raise not_found("blob")
-        blob = await self.store.blobs.read(p.ns, blob_id)
+        blob = await self.store.blobs.read(message.ns, blob_id)
         if blob is None:
             raise not_found("blob")
         return blob

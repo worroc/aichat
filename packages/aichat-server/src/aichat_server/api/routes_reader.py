@@ -1,13 +1,12 @@
 """Endpoints for every reader: agents, the admin and humans."""
 
 from typing import Annotated
-from urllib.parse import quote
 
 from aichat_protocol import models as wire
 from fastapi import APIRouter, Query, Request, Response
 
 from ..service.blobs import upload_meta
-from .deps import IdempotencyKey, PrincipalDep, ServicesDep, idempotent
+from .deps import IdempotencyKey, PrincipalDep, ServicesDep, blob_response, idempotent
 from .sse import sse_response
 
 router = APIRouter()
@@ -203,12 +202,7 @@ async def upload_blob(
 async def download_blob(
     message_id: str, blob_id: str, p: PrincipalDep, services: ServicesDep
 ) -> Response:
-    blob = await services.blobs.download(p, message_id, blob_id)
-    return Response(
-        content=blob.data,
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(blob.name)}"},
-    )
+    return blob_response(await services.blobs.download(p, message_id, blob_id))
 
 
 # --- wake events for supervisors ------------------------------------------------------------------

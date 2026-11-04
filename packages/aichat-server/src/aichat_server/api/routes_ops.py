@@ -3,9 +3,9 @@
 from typing import Annotated
 
 from aichat_protocol import models as wire
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
-from .deps import OperatorDep, ServicesDep
+from .deps import OperatorDep, ServicesDep, blob_response
 from .sse import sse_response
 
 router = APIRouter(prefix="/ops", dependencies=[OperatorDep])
@@ -54,6 +54,11 @@ async def messages(
         ns, channel_id=channel_id, sender=sender, kind=kind, thread_id=thread_id,
         before_seq=before_seq, limit=limit,
     )
+
+
+@router.get("/ns/{ns}/messages/{message_id}/blobs/{blob_id}")
+async def blob(ns: str, message_id: str, blob_id: str, services: ServicesDep) -> Response:
+    return blob_response(await services.blobs.operator_download(ns, message_id, blob_id))
 
 
 @router.get("/ns/{ns}/questions", response_model=list[wire.MessageOut])

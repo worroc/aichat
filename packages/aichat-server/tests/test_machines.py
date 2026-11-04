@@ -218,3 +218,18 @@ async def test_full_file_quota_does_not_block_text(hub, app):
     await _upload(main, b"12345")
     assert code_of(await main.post("/blobs", content=b"6", params={"name": "x"})) == "quota_exceeded"
     await main.ok("post", "/dm/bob", {"text": "text still works"})
+
+
+async def test_operator_downloads_an_attached_file(hub):
+    ns, main = await hub.namespace()
+    await hub.agent(main, "bob")
+    blob = await _upload(main, b"for the human")
+    sent = await main.ok("post", "/dm/bob", {"text": "f", "refs": [{"type": "blob", "id": blob["id"]}]})
+    url = f"/ops/ns/{ns}/messages/{sent['message']['id']}/blobs/{blob['id']}"
+    resp = await hub.client.get(url, headers=hub.op)
+    assert resp.status_code == 200 and resp.content == b"for the human"
+    assert "notes.txt" in resp.headers["content-disposition"]
+    assert (await hub.client.get(url)).status_code == 401  # no operator key
+    other = await _upload(main, b"not attached")
+    bad = f"/ops/ns/{ns}/messages/{sent['message']['id']}/blobs/{other['id']}"
+    assert code_of(await hub.client.get(bad, headers=hub.op)) == "not_found"

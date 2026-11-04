@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { HumanResponse, MessageOut, Ref } from "../api/client";
-import { humanApi } from "../api/client";
+import { humanApi, opsApi } from "../api/client";
+import { useRoute } from "../lib/router";
 import { fullTime, clockTime } from "../lib/time";
 import { Badge } from "./Badge";
 import { ErrorBox } from "./ErrorBox";
@@ -16,14 +17,39 @@ function safeUrl(url: string | null): string | null {
   }
 }
 
+/** Fetches the file with the operator key, then hands it to the browser as a download. */
+async function saveFile(ns: string, messageId: string, r: Ref): Promise<void> {
+  const data = await opsApi.file(ns, messageId, r.id ?? "");
+  const url = URL.createObjectURL(data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = r.name ?? "file";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function FileRef({ r, messageId }: { r: Ref; messageId: string }) {
+  const route = useRoute();
+  const ns = "ns" in route ? route.ns : null;
+  const [error, setError] = useState<unknown>(null);
+  return (
+    <span title={r.sha256 ? `sha256 ${r.sha256}` : ""}>
+      file{" "}
+      {ns ? (
+        <button type="button" className="link" onClick={() => saveFile(ns, messageId, r).catch(setError)}>
+          {r.name}
+        </button>
+      ) : (
+        r.name
+      )}{" "}
+      <span className="muted">({r.size} bytes)</span>
+      <ErrorBox error={error} onClose={() => setError(null)} />
+    </span>
+  );
+}
+
 function RefView({ r, messageId }: { r: Ref; messageId: string }) {
-  if (r.type === "blob") {
-    return (
-      <span title={r.sha256 ?? ""}>
-        file {r.name} ({r.size} bytes) <span className="muted">aichat fetch {messageId}</span>
-      </span>
-    );
-  }
+  if (r.type === "blob") return <FileRef r={r} messageId={messageId} />;
   if (r.type === "url") {
     const href = safeUrl(r.url);
     return href ? (

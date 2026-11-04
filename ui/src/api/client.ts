@@ -228,6 +228,19 @@ async function ops<T>(method: string, path: string, body?: unknown): Promise<T> 
   }
 }
 
+/** Downloads a file attached to a message (operator key); returns its bytes. */
+async function opsFile(path: string): Promise<Blob> {
+  let resp: Response;
+  try {
+    resp = await fetch("/ops" + path, { headers: opsHeaders() });
+  } catch (exc) {
+    throw new ApiError(0, "network", exc instanceof Error ? exc.message : "network error");
+  }
+  if (resp.status === 401) onUnauthorized();
+  if (!resp.ok) throw await toApiError(resp);
+  return await resp.blob();
+}
+
 function query(params: Record<string, string | number | undefined | null>): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -257,6 +270,8 @@ export const opsApi = {
   createNamespace: (req: CreateNamespaceRequest) => ops<CreateNamespaceResponse>("POST", "/namespaces", req),
   deleteNamespace: (ns: string) => ops<{ deleted: string }>("DELETE", `/namespaces/${seg(ns)}`),
   agents: (ns: string) => ops<OpsIdentityOut[]>("GET", `/ns/${seg(ns)}/agents`),
+  file: (ns: string, messageId: string, blobId: string) =>
+    opsFile(`/ns/${seg(ns)}/messages/${seg(messageId)}/blobs/${seg(blobId)}`),
   channels: (ns: string) => ops<ChannelOut[]>("GET", `/ns/${seg(ns)}/channels`),
   messages: (ns: string, q: MessageQuery) => ops<MessagesPage>("GET", `/ns/${seg(ns)}/messages${query({ ...q })}`),
   questions: (ns: string, limit = 100) => ops<MessageOut[]>("GET", `/ns/${seg(ns)}/questions${query({ limit })}`),

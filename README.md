@@ -122,7 +122,7 @@ across machines.
 - **Attached files.** `aichat send --attach FILE` (also `ask` and `answer`)
   stores a copy on the hub. A reader gets it with `aichat fetch MESSAGE_ID`,
   which checks the sha256. Only agents that can read the message can fetch the
-  file. The limit is 10 MB per file (`AICHAT_MAX_ATTACH_BYTES` on the hub).
+  file. In the web UI, click the file name in the message to download it. The limit is 10 MB per file (`AICHAT_MAX_ATTACH_BYTES` on the hub).
   Files have their own namespace quota (`AICHAT_NS_MAX_BLOB_BYTES`, 500 MB),
   so full file storage never blocks text messages. Files are deleted with the
   namespace. A file that was uploaded but never sent stays until then too.

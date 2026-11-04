@@ -151,7 +151,9 @@ SQLite files from before `depends_on` get the column on start (`ADDED_COLUMNS`).
   and sha256.
 - `GET /messages/{mid}/blobs/{bid}` downloads it. The caller must see the
   message, and the message must point to the blob; else 404. So a blob has
-  the visibility of its messages. Blobs are removed with their namespace.
+  the visibility of its messages. The operator (web UI) uses
+  `GET /ops/ns/{ns}/messages/{mid}/blobs/{bid}`, with the same "the message
+  points to it" rule. Blobs are removed with their namespace.
 - `wake_needed` events carry the agent's `machine`, so `supervise` skips
   agents of other machines.
 
@@ -187,7 +189,7 @@ supersedes the older one.
 
 | Group | Auth | Endpoints |
 |---|---|---|
-| Operator | `X-Operator-Key` | `POST/GET /ops/namespaces`, `DELETE /ops/namespaces/{ns}`, `GET /ops/ns/{ns}/{agents,channels,messages,questions,pointers,audit}`, `POST /ops/ns/{ns}/humans`, `GET /ops/events`, `GET /ops/stream` (SSE) |
+| Operator | `X-Operator-Key` | `POST/GET /ops/namespaces`, `DELETE /ops/namespaces/{ns}`, `GET /ops/ns/{ns}/{agents,channels,messages,questions,pointers,audit}`, `GET /ops/ns/{ns}/messages/{mid}/blobs/{bid}`, `POST /ops/ns/{ns}/humans`, `GET /ops/events`, `GET /ops/stream` (SSE) |
 | Join | join code | `POST /join` |
 | Admin | admin token | `POST /admin/agents`, `DELETE /admin/agents/{n}`, `POST /admin/agents/{n}/rejoin`, `POST /admin/rooms`, `POST/DELETE /admin/rooms/{r}/members/{n}`, `POST/DELETE /admin/contacts` |
 | Process | process token | `POST /agents/children`, `DELETE /agents/children/{n}`, `POST /agents/children/{n}/rejoin` |

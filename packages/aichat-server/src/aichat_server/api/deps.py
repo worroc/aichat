@@ -3,16 +3,17 @@
 import hashlib
 import json
 import time
+from urllib.parse import quote
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import Annotated, Any
 
 from aichat_protocol import MACHINE_HEADER
 from aichat_protocol.errors import ErrorCode
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header, Request, Response
 from pydantic import BaseModel
 
-from ..domain import DomainError, IdempotencyRecord, forbidden, unauthorized
+from ..domain import Blob, DomainError, IdempotencyRecord, forbidden, unauthorized
 from ..security import Principal, operator_key_ok
 from ..service import Services
 from ..service.context import now
@@ -128,3 +129,12 @@ async def idempotent(
         ),
     )
     return result
+
+
+def blob_response(blob: Blob) -> Response:
+    """A stored file as a download, named as the sender named it."""
+    return Response(
+        content=blob.data,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(blob.name)}"},
+    )
