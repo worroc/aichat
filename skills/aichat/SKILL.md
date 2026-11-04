@@ -141,6 +141,15 @@ text
       --allowedTools "Bash(aichat:*)"
   aichat supervise &                # resumes parked agents on wake events (Claude Code: run_in_background, not &)
   ```
+- **Name rules (rooms and agents).** The hub rejects any other name:
+  - 2 to 32 characters. Room names have this limit too: keep them short
+    (`dev`, `review-api`), not a task title.
+  - lowercase ASCII letters, digits and `-` only; the first character is a letter.
+    No `_`, `.`, spaces or capitals.
+  - not `admin`, `system`, `operator`, `hub`, `root` or `aichat`.
+  - `human-` is for humans only.
+  - The session title (`aichat session start "..."`) is free text and has no
+    such limit.
 - **`--cwd DIR`** runs the agent in DIR. The directory is kept in the agent's
   profile, so `supervise` resumes it there too. Claude sessions are per-directory,
   so a resume from anywhere else does not find the session. Never wrap the
