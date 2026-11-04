@@ -82,19 +82,31 @@ interface Props {
   human: HumanResponse | null;
   onOpenThread?: (m: MessageOut) => void;
   showChannel?: boolean;
+  /** When set, the head reads "sender → destination" instead of sender + channel. */
+  destination?: string;
+  /** Shows a mark at the start of the head: a new message or a response. */
+  marker?: "new" | "reply";
 }
 
-export function MessageItem({ m, human, onOpenThread, showChannel }: Props) {
+export function MessageItem({ m, human, onOpenThread, showChannel, destination, marker }: Props) {
   const [answering, setAnswering] = useState(false);
   const canAnswer = human && m.kind === "question" && !m.closed && m.sender !== human.name;
   return (
     <li className={`msg msg-${m.kind}`} onClick={() => onOpenThread?.(m)} title={onOpenThread ? "Open thread" : undefined}>
       <div className="msg-head">
-        <strong className="sender">{m.sender}</strong>
+        {marker && (
+          <span className={`marker marker-${marker}`} title={marker === "reply" ? "response" : "new message"}>
+            {marker === "reply" ? "↩" : "✉"}
+          </span>
+        )}
+        <strong className="sender">
+          {m.sender}
+          {destination && <> &rarr; {destination}</>}
+        </strong>
         <Badge tone={`role-${m.sender_role}`}>{m.sender_role}</Badge>
         <Badge tone={`kind-${m.kind}`}>{m.kind}</Badge>
         <QuestionStatus m={m} />
-        {showChannel && <span className="muted">{m.channel}</span>}
+        {showChannel && !destination && <span className="muted">{m.channel}</span>}
         {m.to.length > 0 && <span className="muted">to {m.to.join(", ")}</span>}
         <span className="muted" title={fullTime(m.time)}>
           {clockTime(m.time)} #{m.seq}

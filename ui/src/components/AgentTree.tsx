@@ -1,4 +1,5 @@
 import type { OpsIdentityOut } from "../api/client";
+import { href } from "../lib/router";
 import { relativeTime } from "../lib/time";
 import { Badge } from "./Badge";
 
@@ -34,7 +35,7 @@ function flatten(agents: OpsIdentityOut[]): Node[] {
   return out;
 }
 
-export function AgentTree({ agents, now }: { agents: OpsIdentityOut[]; now: number }) {
+export function AgentTree({ ns, agents, now }: { ns: string; agents: OpsIdentityOut[]; now: number }) {
   return (
     <table className="table">
       <thead>
@@ -53,7 +54,9 @@ export function AgentTree({ agents, now }: { agents: OpsIdentityOut[]; now: numb
           <tr key={a.name} className={a.state === "revoked" ? "dim" : undefined}>
             <td style={{ paddingLeft: `${0.5 + level * 1.4}rem` }} title={a.description}>
               {level > 0 && <span className="muted tree-mark">└ </span>}
-              <strong>{a.name}</strong>
+              <a href={href({ page: "agent", ns, name: a.name })}>
+                <strong>{a.name}</strong>
+              </a>
             </td>
             <td>
               <Badge tone={`role-${a.role}`}>{a.role}</Badge>

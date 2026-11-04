@@ -13,13 +13,13 @@ interface SectionProps {
   version: number;
 }
 
-export function AgentsSection({ agents, error }: { agents: OpsIdentityOut[] | null; error: unknown }) {
+export function AgentsSection({ ns, agents, error }: { ns: string; agents: OpsIdentityOut[] | null; error: unknown }) {
   const now = useNow();
   return (
     <div className="page">
       <h2>Agents</h2>
       <ErrorBox error={error} />
-      {agents && <AgentTree agents={agents} now={now} />}
+      {agents && <AgentTree ns={ns} agents={agents} now={now} />}
     </div>
   );
 }

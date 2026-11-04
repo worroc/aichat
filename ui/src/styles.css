@@ -583,3 +583,48 @@ body.resizing {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- agent page -------------------------------------------------------- */
+
+.table tr.clickable {
+  cursor: pointer;
+}
+.table tr.clickable:hover {
+  background: var(--panel-2);
+}
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.toggle button {
+  background: var(--panel);
+  color: inherit;
+  border-radius: 0;
+}
+.toggle button.on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.messages .replies {
+  margin: 0 0 0 1.6rem;
+  padding-left: 0.6rem;
+  border-left: 2px dashed var(--border);
+}
+.messages .replies > .messages {
+  margin: 0;
+}
+.marker {
+  font-size: 1.05em;
+  line-height: 1;
+}
+.marker-new {
+  color: var(--info);
+}
+.marker-reply {
+  color: var(--a);
+}
+.name-icon {
+  margin-right: 0.35rem;
+}

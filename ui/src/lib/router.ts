@@ -8,7 +8,8 @@ export type Route =
   | { page: "namespaces" }
   | { page: "ns"; ns: string; section: Section }
   | { page: "channel"; ns: string; channelId: string }
-  | { page: "thread"; ns: string; threadId: string };
+  | { page: "thread"; ns: string; threadId: string }
+  | { page: "agent"; ns: string; name: string };
 
 const SECTIONS: Section[] = ["agents", "questions", "pointers", "audit"];
 
@@ -18,6 +19,7 @@ export function parseHash(hash: string): Route {
   const ns = parts[1];
   if (parts[2] === "c" && parts[3]) return { page: "channel", ns, channelId: parts[3] };
   if (parts[2] === "t" && parts[3]) return { page: "thread", ns, threadId: parts[3] };
+  if (parts[2] === "a" && parts[3]) return { page: "agent", ns, name: parts[3] };
   const section = SECTIONS.find((s) => s === parts[2]) ?? "agents";
   return { page: "ns", ns, section };
 }
@@ -33,6 +35,8 @@ export function href(route: Route): string {
       return `#/ns/${e(route.ns)}/c/${e(route.channelId)}`;
     case "thread":
       return `#/ns/${e(route.ns)}/t/${e(route.threadId)}`;
+    case "agent":
+      return `#/ns/${e(route.ns)}/a/${e(route.name)}`;
   }
 }
 

@@ -7,6 +7,7 @@ import { useHuman } from "../lib/human";
 import { useLive } from "../lib/live";
 import { href, type Route, type Section } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
+import { AgentPage } from "./AgentPage";
 import { ChannelPage } from "./ChannelPage";
 import { AgentsSection, AuditSection, PointersSection, QuestionsSection } from "./SectionPages";
 
@@ -91,12 +92,25 @@ export function NamespaceLayout({ route }: { route: NsRoute }) {
         />
       );
     }
+    if (route.page === "agent") {
+      return (
+        <AgentPage
+          key={route.name}
+          ns={ns}
+          name={route.name}
+          agents={agents.data ?? []}
+          channels={channelList}
+          human={human}
+          version={version}
+        />
+      );
+    }
     if (route.page === "thread") {
       return <ThreadView ns={ns} threadId={route.threadId} version={version} human={human} />;
     }
     switch (route.section) {
       case "agents":
-        return <AgentsSection agents={agents.data} error={agents.error} />;
+        return <AgentsSection ns={ns} agents={agents.data} error={agents.error} />;
       case "questions":
         return <QuestionsSection ns={ns} version={version} />;
       case "pointers":
