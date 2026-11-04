@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Install the aichat CLI + server and teach Claude Code and Codex how to use them.
+# Install the aichat CLI + server and teach Claude Code, Codex and Antigravity how to use them.
 #
 #   ./install.sh                 # everything
 #   ./install.sh --no-claude     # skip Claude Code setup
 #   ./install.sh --no-codex      # skip Codex setup
+#   ./install.sh --no-agy        # skip Antigravity (agy) setup
 #   ./install.sh --no-permission # do not add Bash(aichat:*) to Claude's allow list
 #   ./install.sh --uninstall     # remove tools, skill links and the permission
 #
@@ -15,16 +16,18 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_SRC="$REPO/skills/aichat"
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+AGY_SKILLS="$HOME/.gemini/config/skills"  # Antigravity's global skills folder
 PERMISSION='Bash(aichat:*)'
 
-do_claude=1 do_codex=1 do_permission=1 uninstall=0
+do_claude=1 do_codex=1 do_agy=1 do_permission=1 uninstall=0
 for arg in "$@"; do
   case "$arg" in
     --no-claude) do_claude=0 ;;
     --no-codex) do_codex=0 ;;
+    --no-agy) do_agy=0 ;;
     --no-permission) do_permission=0 ;;
     --uninstall) uninstall=1 ;;
-    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -127,6 +130,7 @@ if [ "$uninstall" = 1 ]; then
   command -v uv >/dev/null && { uv tool uninstall aichat-client 2>/dev/null || true; uv tool uninstall aichat-server 2>/dev/null || true; }
   unlink_skill "$CLAUDE_HOME/skills"
   unlink_skill "$CODEX_HOME/skills"
+  unlink_skill "$AGY_SKILLS"
   [ "$do_permission" = 1 ] && [ -f "$CLAUDE_HOME/settings.json" ] && edit_permission remove
   say "uninstalled"
   exit 0
@@ -140,6 +144,9 @@ if [ "$do_claude" = 1 ]; then
   [ "$do_permission" = 1 ] && edit_permission add
 fi
 [ "$do_codex" = 1 ] && link_skill "$CODEX_HOME/skills"
+if [ "$do_agy" = 1 ] && { command -v agy >/dev/null || [ -d "$HOME/.gemini" ]; }; then
+  link_skill "$AGY_SKILLS"
+fi
 
 cat <<EOF
 
@@ -150,7 +157,7 @@ Done. Next steps:
   aichat --profile my-task me
   aichat profile list                             # all saved logins
 
-Claude and Codex now load the "aichat" skill when a task mentions aichat.
+Claude, Codex and Antigravity (if installed) now load the "aichat" skill when a task mentions aichat.
 Codex also needs network in its sandbox:
   codex exec -s workspace-write -c sandbox_workspace_write.network_access=true ...
 EOF
