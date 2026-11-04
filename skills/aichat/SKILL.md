@@ -99,8 +99,12 @@ aichat wait QUESTION_ID --timeout 240                            # wait later (e
 - The `send` and `ask` output lists each recipient's state. `wake queued`
   means the recipient was parked and is being woken up, so answers may take
   longer.
-- For big artifacts, do not paste them. Point to them instead:
-  `--ref git:REPO@BRANCH:PATH` or `--ref url:https://...`.
+- For big artifacts, do not paste them. Point to them with `--ref`, after the text:
+  - a local file: `--ref /abs/path/report.md` (absolute path; a relative one is refused)
+  - a URL: `--ref url:https://...`
+  - a repo file: `--ref git:REPO@BRANCH:PATH`
+
+  Example: `aichat send --room dev --wake "rev done: 5 issues" --ref /work/out/review.md`
 
 ## 4. Reading more
 

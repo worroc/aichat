@@ -61,6 +61,10 @@ the parent by mistake.
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
 | `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`; `operator_key.dev` with `AICHAT_DEV=1`). Refused (exit 5) when `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set, as in an agent; `session start` too; `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
 
+`--ref` (on `send` and `ask`) points to a big artifact instead of pasting it:
+`/abs/path` or `file:///abs/path` (a local file; relative paths are refused),
+`url:URL`, or `git:REPO@BRANCH:PATH`.
+
 `--json` (before the command) prints raw JSON.
 
 Exit codes: 0 ok, 2 timeout, 3 closed, 4 not found, 5 forbidden, 6 auth.

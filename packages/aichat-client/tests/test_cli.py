@@ -6,6 +6,7 @@ import threading
 import time
 
 import pytest
+import typer
 import uvicorn
 from aichat_client import envelope
 from aichat_protocol import envfile
@@ -214,6 +215,30 @@ def test_parse_ref():
         "commit": "abc",
     }
     assert parse_ref("url:https://x.y/z") == {"type": "url", "url": "https://x.y/z"}
+
+
+def test_parse_ref_local_file(tmp_path):
+    f = tmp_path / "report.md"
+    f.write_text("x")
+    expected = {"type": "url", "url": "file://" + str(f)}
+    assert parse_ref(str(f)) == expected
+    assert parse_ref("file://" + str(f)) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "error"),
+    [
+        ("reports/x.md", "absolute path"),
+        ("file://reports/x.md", "needs an absolute path"),
+        ("file:///nope/x.md", "no such file"),
+        ("ftp:x", "use /abs/path"),
+    ],
+)
+def test_parse_ref_rejects(value, error, capsys):
+    with pytest.raises(typer.Exit) as exc:
+        parse_ref(value)
+    assert exc.value.exit_code == 1
+    assert error in capsys.readouterr().err
 
 
 def test_build_argv_keeps_prompt_one_argument():

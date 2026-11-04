@@ -100,12 +100,28 @@ def split_names(value: str | None) -> list[str]:
     return [n.strip() for n in (value or "").split(",") if n.strip()]
 
 
+REF_FORMS = "/abs/path or file:///abs/path (a local file, absolute path), url:URL, or git:REPO@BRANCH:PATH"
+
+
+def parse_file_ref(value: str) -> dict[str, Any]:
+    """A local file as a ``file://`` url ref. Absolute only: other agents run in other directories."""
+    path = value.removeprefix("file://")
+    if not path.startswith("/"):
+        fail(f"bad --ref {value!r}: a file ref needs an absolute path (/abs/path or file:///abs/path)")
+    if not os.path.exists(path):
+        fail(f"bad --ref {value!r}: no such file")
+    return {"type": "url", "url": "file://" + path}
+
+
 def parse_ref(value: str) -> dict[str, Any]:
-    """``url:https://...`` or ``git:REPO[@BRANCH][:PATH][#COMMIT]``."""
+    """``/abs/path`` or ``file:///abs/path`` (a local file), ``url:URL``,
+    or ``git:REPO[@BRANCH][:PATH][#COMMIT]``."""
     if value.startswith("url:"):
         return {"type": "url", "url": value.removeprefix("url:")}
+    if value.startswith(("file://", "/")):
+        return parse_file_ref(value)
     if not value.startswith("git:"):
-        fail(f"bad --ref {value!r}: use git:REPO@BRANCH:PATH or url:URL")
+        fail(f"bad --ref {value!r}: use {REF_FORMS}")
     body, _, commit = value.removeprefix("git:").partition("#")
     repo, _, rest = body.partition("@")
     branch, _, path = rest.partition(":") if rest else ("", "", "")

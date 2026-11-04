@@ -24,7 +24,7 @@ from .common import (
 To = Annotated[str | None, typer.Option("--to", help="DM this contact")]
 Room = Annotated[str | None, typer.Option("--room", help="post in this room")]
 Text = Annotated[str | None, typer.Argument(help="message text, or '-' for stdin")]
-Refs = Annotated[list[str] | None, typer.Option("--ref", help="git:REPO@BRANCH:PATH or url:URL")]
+Refs = Annotated[list[str] | None, typer.Option("--ref", help="/abs/path or file:///abs/path (local file), url:URL, or git:REPO@BRANCH:PATH")]
 Key = Annotated[str | None, typer.Option("--key", help="idempotency key (safe re-run)")]
 
 
