@@ -10,7 +10,7 @@ router = APIRouter()
 
 @router.post("/join", response_model=wire.JoinResponse, dependencies=[Depends(join_limit)])
 async def join(req: wire.JoinRequest, services: ServicesDep) -> wire.JoinResponse:
-    return await services.identity.join(req.code)
+    return await services.identity.join(req.code, req.machine)
 
 
 # --- admin ------------------------------------------------------------------------

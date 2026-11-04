@@ -16,6 +16,7 @@ from ..domain import (
     Message,
     MsgKind,
     NewMessage,
+    Ref,
     State,
     forbidden,
     invalid,
@@ -23,6 +24,7 @@ from ..domain import (
 from ..notify import question_topic, reader_topic
 from ..security import Principal, find_secrets, hash_secret
 from .access import Access, label
+from .blobs import BlobService
 from .context import Ctx, now
 from .present import Presenter, ref_in
 from .reading import ReadingService
@@ -31,20 +33,26 @@ from .waits import wait_until
 
 class MessagingService:
     def __init__(
-        self, ctx: Ctx, access: Access, presenter: Presenter, reading: ReadingService
+        self,
+        ctx: Ctx,
+        access: Access,
+        presenter: Presenter,
+        reading: ReadingService,
+        blobs: BlobService,
     ) -> None:
         self.ctx = ctx
         self.store = ctx.store
         self.access = access
         self.presenter = presenter
         self.reading = reading
+        self.blobs = blobs
 
     # --- posting ------------------------------------------------------------------
 
     async def post_room(
         self, p: Principal, room: str, req: wire.PostMessageRequest
     ) -> wire.PostResponse:
-        await self.ctx.identity(p)
+        sender = await self.ctx.identity(p)
         channel, _ = await self.access.room(p, normalize(room), join_human=True)
         others = await self._live_members(p.ns, channel) - {p.name}
         to = {normalize(n) for n in req.to}
@@ -56,7 +64,8 @@ class MessagingService:
         if req.kind == MsgKind.QUESTION.value and closed and not to and not others - closed:
             raise recipient_done(sorted(closed))
         answerers = to or others - closed
-        new = await self._build(p, channel, req, frozenset(to), answerers)
+        refs = await self._refs(sender, req.refs, others - closed)
+        new = await self._build(p, sender, channel, req, frozenset(to), answerers, refs)
         message = await self._store(p, new)
         wake = to or (others if message.kind is MsgKind.QUESTION or req.wake else set())
         return await self._deliver(p, channel, message, others, wake)
@@ -64,13 +73,14 @@ class MessagingService:
     async def post_dm(
         self, p: Principal, peer_name: str, req: wire.PostMessageRequest
     ) -> wire.PostResponse:
-        await self.ctx.identity(p)
+        sender = await self.ctx.identity(p)
         channel, peer = await self.access.direct_for_post(p, normalize(peer_name))
         if peer.closed:
             raise recipient_done([peer.name])
         if req.to and {normalize(n) for n in req.to} != {peer.name}:
             raise invalid("in a DM, 'to' can only be the peer")
-        new = await self._build(p, channel, req, frozenset({peer.name}), {peer.name})
+        refs = await self._refs(sender, req.refs, {peer.name})
+        new = await self._build(p, sender, channel, req, frozenset({peer.name}), {peer.name}, refs)
         message = await self._store(p, new)
         return await self._deliver(p, channel, message, {peer.name}, {peer.name})
 
@@ -94,10 +104,12 @@ class MessagingService:
     async def _build(
         self,
         p: Principal,
+        sender: Identity,
         channel: Channel,
         req: wire.PostMessageRequest,
         to: frozenset[str],
         answerers: set[str],
+        refs: tuple[Ref, ...],
     ) -> NewMessage:
         await self._check_text(p, req.text)
         kind = MsgKind(req.kind)
@@ -115,8 +127,41 @@ class MessagingService:
             to=to,
             max_agents_answers=cap,
             expires_at=expires if kind is MsgKind.QUESTION else None,
-            refs=tuple(ref_in(r) for r in req.refs),
+            refs=refs,
+            sender_machine=sender.machine,
         )
+
+    # --- refs ------------------------------------------------------------------------
+
+    async def _refs(
+        self, sender: Identity, raw: list[wire.Ref], readers: set[str]
+    ) -> tuple[Ref, ...]:
+        """Check and complete the refs of a new message before anything is written."""
+        refs = tuple([await self._ref(sender, r) for r in raw])
+        if any(r.is_file for r in refs):
+            await self._check_reachable(sender, readers)
+        return refs
+
+    async def _ref(self, sender: Identity, raw: wire.Ref) -> Ref:
+        ref = ref_in(raw)
+        if ref.is_blob:
+            return await self.blobs.resolve(sender.ns, ref)
+        ref = replace(ref, id=None, name=None)
+        if ref.is_file:
+            return replace(ref, machine=sender.machine)
+        return ref
+
+    async def _check_reachable(self, sender: Identity, readers: set[str]) -> None:
+        """A file ref opens only on the sender's machine. Unknown machines (old clients) pass."""
+        if sender.machine is None:
+            return
+        far: list[str] = []
+        for name in sorted(readers):
+            ident = await self.store.identities.get(sender.ns, name)
+            if ident is not None and ident.machine not in {None, sender.machine}:
+                far.append(f"{name} is on {ident.machine}")
+        if far:
+            raise file_ref_unreachable(sender.machine, far)
 
     def _answer_cap(self, kind: MsgKind, requested: int | None, answerers: set[str]) -> int | None:
         if kind is not MsgKind.QUESTION:
@@ -190,6 +235,7 @@ class MessagingService:
                     state=ident.state.value,
                     wake="queued" if woken else "none",
                     will_read=not ident.closed,
+                    machine=ident.machine,
                 )
             )
         await self.ctx.emit(p.ns, "message", self._event_data(channel, message))
@@ -218,6 +264,7 @@ class MessagingService:
                 "name": ident.name,
                 "parent": ident.parent,
                 "provider": ident.provider,
+                "machine": ident.machine,
                 "session_ref": ident.session_ref,
                 "resume_template": ident.resume_template,
                 "message_id": message.id,
@@ -251,6 +298,9 @@ class MessagingService:
             raise forbidden("this question is addressed to other agents")
         await self._check_text(p, req.text)
         await self._check_quota(p.ns, len(req.text.encode()))
+        sender = await self.ctx.identity(p)
+        readers = await self._live_members(p.ns, channel) - {p.name}
+        refs = await self._refs(sender, req.refs, readers - await self._closed(p.ns, readers))
         new = NewMessage(
             channel_id=channel.id,
             sender=p.name,
@@ -260,11 +310,11 @@ class MessagingService:
             reply_to=question.id,
             thread_id=question.thread_id,
             to=frozenset({question.sender}),
-            refs=tuple(ref_in(r) for r in req.refs),
+            refs=refs,
+            sender_machine=sender.machine,
         )
         message = await self.store.messages.add_answer(p.ns, new)
         await self._after_answer(p, question)
-        readers = await self._live_members(p.ns, channel) - {p.name}
         return await self._deliver(p, channel, message, readers, {question.sender})
 
     async def _after_answer(self, p: Principal, question: Message) -> None:
@@ -284,8 +334,11 @@ class MessagingService:
         if mine is None:
             raise DomainError(ErrorCode.NOT_FOUND, "answer not found")
         await self._check_text(p, req.text)
+        sender = await self.ctx.identity(p)
+        readers = await self._live_members(p.ns, channel) - {p.name}
+        refs = await self._refs(sender, req.refs, readers - await self._closed(p.ns, readers))
         updated = replace(
-            mine, text=req.text, refs=tuple(ref_in(r) for r in req.refs), amended_at=now()
+            mine, text=req.text, refs=refs, amended_at=now(), sender_machine=sender.machine
         )
         await self.store.messages.replace(p.ns, updated)
         await self.ctx.notifier.publish(question_topic(p.ns, question.id))
@@ -353,6 +406,15 @@ class MessagingService:
             if ident is not None and ident.state is State.PARKED:
                 parked.append(name)
         return parked
+
+
+def file_ref_unreachable(machine: str, far: list[str]) -> DomainError:
+    return DomainError(
+        ErrorCode.FILE_REF_UNREACHABLE,
+        f"a file ref is a path on {machine}, but {'; '.join(far)}, so they cannot open it. "
+        "Send the file with --attach FILE, or push it and use --ref git:REPO@BRANCH:PATH#COMMIT, "
+        "or --ref url:URL",
+    )
 
 
 def recipient_done(names: list[str]) -> DomainError:

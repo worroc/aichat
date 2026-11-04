@@ -11,6 +11,8 @@ Rules every backend must follow (checked by ``tests/contract``):
   one-answer-per-author rule atomically, and closes the question when the
   cap is reached.
 * ``pointers.advance`` never moves a pointer backwards.
+* ``blobs.add`` stores a content once per namespace: a blob with a
+  ``sha256`` that is already stored returns the stored blob (its id).
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from typing import Any, Protocol
 
 from ..domain import (
     AuditEntry,
+    Blob,
     Channel,
     ChannelKind,
     Closed,
@@ -103,6 +106,13 @@ class MessageRepo(Protocol):
     async def usage(self, ns: str) -> tuple[int, int]: ...  # (count, bytes)
 
 
+class BlobRepo(Protocol):
+    async def add(self, ns: str, blob: Blob) -> Blob: ...  # same sha256 in ns: returns the stored one
+    async def get(self, ns: str, blob_id: str) -> Blob | None: ...  # metadata only, data is b""
+    async def read(self, ns: str, blob_id: str) -> Blob | None: ...  # with data
+    async def usage(self, ns: str) -> int: ...  # total bytes
+
+
 class PointerRepo(Protocol):
     async def get(self, ns: str, reader: str, channel_id: str) -> int: ...
     async def advance(self, ns: str, reader: str, channel_id: str, seq: int) -> int: ...
@@ -134,6 +144,7 @@ class Store(Protocol):
     channels: ChannelRepo
     memberships: MembershipRepo
     messages: MessageRepo
+    blobs: BlobRepo
     pointers: PointerRepo
     idempotency: IdempotencyRepo
     audit: AuditRepo

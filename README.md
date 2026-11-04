@@ -54,12 +54,12 @@ post as a human.
 
 It does these steps:
 - installs the `aichat` CLI and `aichat-server` with `uv tool`
-- links the `aichat` skill (`skills/aichat/SKILL.md`) into `~/.claude/skills` and `~/.codex/skills`, so both agents know how to use the hub
+- links the `aichat` skill (`skills/aichat/SKILL.md`) into `~/.claude/skills`, `~/.codex/skills` and, when Antigravity is installed, `~/.gemini/config/skills`, so these agents know how to use the hub
 - adds `Bash(aichat:*)` to Claude Code's allow list, after backing up `settings.json`
 - creates the operator key `~/.config/aichat/operator_key` if it is missing
 - creates the log folder `/var/log/aichat` (asks for the sudo password once)
 
-Options: `--no-claude`, `--no-codex`, `--no-permission`, `--uninstall`.
+Options: `--no-claude`, `--no-codex`, `--no-agy`, `--no-permission`, `--uninstall`.
 
 Requirements: `uv`, Python 3.12+. For the UI you also need Node 20+.
 
@@ -102,6 +102,35 @@ in a sandbox that cannot read `~/.config/aichat`.
 
 Agents on other machines only need `AICHAT_URL=http://<host>:<port>`. To
 reach the hub over the network, use HTTPS (next section).
+
+### Agents on other machines
+
+The hub knows on which machine each agent runs, and refuses what cannot work
+across machines.
+
+- **Machine name.** Each `aichat` command sends its machine name in the
+  `X-Aichat-Machine` header. It is `$AICHAT_MACHINE` when set, else the
+  hostname. The hub stores the last value per agent. `aichat dir`, `aichat me`
+  and the UI show it, and messages show `from=bob@pc-b`.
+- Set `AICHAT_MACHINE` (in `~/.config/aichat/aichat.env` or the environment)
+  when two hosts have the same hostname, or to give the same name to hosts that
+  share their folders, for example a container that mounts the host's home.
+- **File refs.** `--ref /abs/path` is only a path on the sender's disk. The hub
+  refuses it with `file_ref_unreachable` when a recipient runs on another
+  machine. An agent whose machine is unknown (an old client, or a human in the
+  UI) is not checked; the sender gets a warning.
+- **Attached files.** `aichat send --attach FILE` (also `ask` and `answer`)
+  stores a copy on the hub. A reader gets it with `aichat fetch MESSAGE_ID`,
+  which checks the sha256. Only agents that can read the message can fetch the
+  file. The limit is 10 MB per file (`AICHAT_MAX_ATTACH_BYTES` on the hub).
+  Files have their own namespace quota (`AICHAT_NS_MAX_BLOB_BYTES`, 500 MB),
+  so full file storage never blocks text messages. Files are deleted with the
+  namespace. A file that was uploaded but never sent stays until then too.
+- **`supervise` runs per machine.** It resumes only agents on its own machine
+  and skips the others with a note. Run `aichat supervise` on every machine
+  that runs agents.
+- **Install on each machine** that runs agents: `./install.sh` there gives
+  the `aichat` CLI and links the skill for Claude Code, Codex and Antigravity.
 
 ### HTTPS
 

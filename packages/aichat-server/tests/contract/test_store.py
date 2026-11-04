@@ -2,12 +2,14 @@
 
 import asyncio
 import inspect
+import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
 from aichat_protocol.errors import ErrorCode
 from aichat_server.domain import (
+    Blob,
     Channel,
     ChannelKind,
     Closed,
@@ -19,12 +21,13 @@ from aichat_server.domain import (
     MsgKind,
     Namespace,
     NewMessage,
+    Ref,
     Role,
     State,
 )
 from aichat_server.store.base import NS_EXEMPT
 from aichat_server.store.memory import MemoryStore
-from aichat_server.store.sqlite import SqliteStore
+from aichat_server.store.sqlite import SCHEMA, SqliteStore
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -168,7 +171,7 @@ async def test_identity_lifetime_fields_round_trip(make_store):
     )
     await store.identities.add("ns1", ident)
     assert await store.identities.get("ns1", "lead") == ident
-    changed = replace(ident, state=State.PARKED, done_requested=True)
+    changed = replace(ident, state=State.PARKED, done_requested=True, machine="pc-a")
     await store.identities.replace("ns1", changed)
     assert await store.identities.get("ns1", "lead") == changed
 
@@ -184,3 +187,64 @@ async def test_sqlite_keeps_data_after_reopen(tmp_path):
     assert (await again.namespaces.get("ns1")).title == "t"
     assert await again.messages.get("ns1", sent.id) == sent
     await again.close()
+
+
+def _blob(data: bytes, blob_id: str = "b1", name: str = "a.txt") -> Blob:
+    return Blob(
+        ns="", id=blob_id, name=name, size=len(data), sha256=f"sha-{data.hex()}",
+        uploader="a", created_at=datetime.now(UTC), data=data,
+    )
+
+
+async def test_blobs_store_dedup_and_isolation(make_store):
+    store = make_store()
+    stored = await store.blobs.add("ns1", _blob(b"hello"))
+    assert stored.id == "b1" and stored.ns == "ns1" and stored.data == b""
+    again = await store.blobs.add("ns1", _blob(b"hello", "b2", "other.txt"))
+    assert again.id == "b1" and again.name == "a.txt"
+    assert (await store.blobs.get("ns1", "b1")).data == b""
+    assert (await store.blobs.read("ns1", "b1")).data == b"hello"
+    assert await store.blobs.read("ns2", "b1") is None
+    await store.blobs.add("ns2", _blob(b"hello", "b3"))
+    assert (await store.blobs.get("ns2", "b3")).ns == "ns2"
+    assert await store.blobs.usage("ns1") == 5
+    await store.delete_namespace("ns1")
+    assert await store.blobs.get("ns1", "b1") is None and await store.blobs.usage("ns1") == 0
+    assert await store.blobs.usage("ns2") == 5
+
+
+async def test_message_machine_and_refs_round_trip(make_store):
+    store = make_store()
+    await _room(store)
+    refs = (
+        Ref(type="url", url="file:///tmp/x", machine="pc-a"),
+        Ref(type="blob", id="b1", name="x.txt", size=3, sha256="abc"),
+    )
+    sent = await store.messages.add("ns1", _msg(refs=refs, sender_machine="pc-a"))
+    got = await store.messages.get("ns1", sent.id)
+    assert got == sent and got.refs == refs and got.sender_machine == "pc-a"
+    await store.messages.replace("ns1", replace(got, sender_machine="pc-b"))
+    assert (await store.messages.get("ns1", sent.id)).sender_machine == "pc-b"
+
+
+async def test_sqlite_adds_machine_columns_to_an_old_file(tmp_path):
+    path = tmp_path / "old.db"
+    old = SCHEMA.replace("    machine TEXT, PRIMARY KEY", "    PRIMARY KEY").replace(
+        "    sender_machine TEXT, UNIQUE", "    UNIQUE"
+    )
+    assert old != SCHEMA
+    conn = sqlite3.connect(path)
+    conn.executescript(old)
+    conn.close()
+    store = SqliteStore(str(path))
+    ident = Identity(
+        ns="ns1", uid="u1", name="lead", role=Role.AGENT, kind=Kind.PROCESS, parent=None,
+        depth=0, state=State.ACTIVE, tags=frozenset(), provider="p", description="",
+        session_ref=None, resume_template=None, created_at=datetime.now(UTC), machine="pc-a",
+    )
+    await store.identities.add("ns1", ident)
+    assert (await store.identities.get("ns1", "lead")).machine == "pc-a"
+    await _room(store)
+    sent = await store.messages.add("ns1", _msg(sender_machine="pc-a"))
+    assert (await store.messages.get("ns1", sent.id)).sender_machine == "pc-a"
+    await store.close()

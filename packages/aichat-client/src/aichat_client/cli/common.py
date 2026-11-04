@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -134,6 +135,18 @@ def parse_ref(value: str) -> dict[str, Any]:
         "path": path or None,
         "commit": commit or None,
     }
+
+
+def attach_refs(client: HubClient, paths: list[str] | None) -> list[dict[str, Any]]:
+    """Upload each file to the hub; return blob refs. Any agent that reads the message can fetch them."""
+    refs: list[dict[str, Any]] = []
+    for value in paths or []:
+        path = Path(value).expanduser()
+        if not path.is_file():
+            fail(f"bad --attach {value!r}: no such file")
+        blob = client.upload("/blobs", path.read_bytes(), path.name)
+        refs.append({"type": "blob", "id": blob["id"], "name": blob["name"]})
+    return refs
 
 
 def channel_path(to: str | None, room: str | None) -> str:

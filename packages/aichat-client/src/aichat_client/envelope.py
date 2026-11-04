@@ -16,6 +16,8 @@ fence is longer than any run of ``~`` in the text.
 import re
 from typing import Any
 
+from .machine import machine_id
+
 _MARKER = re.compile(r"^(\s*)(\[/?aichat)", re.MULTILINE)
 
 
@@ -31,7 +33,7 @@ def _escape(text: str) -> str:
 def header(msg: dict[str, Any]) -> str:
     fields = [
         f"id={msg['id']}",
-        f"from={msg['sender']}",
+        f"from={msg['sender']}" + (f"@{msg['sender_machine']}" if msg.get("sender_machine") else ""),
         f"role={msg['sender_role']}",
         f"channel={msg['channel']}",
         f"kind={msg['kind']}",
@@ -63,11 +65,31 @@ def _git_ref(ref: dict[str, Any]) -> str:
     return text
 
 
+def _url_ref(ref: dict[str, Any]) -> str:
+    text = f"ref: {ref.get('url')}"
+    machine = ref.get("machine")
+    if not (ref.get("url") or "").startswith("file://") or not machine:
+        return text
+    text += f" (on {machine})"
+    if machine != machine_id():
+        text += " NOT on this machine: ask the sender to --attach it, or for a git: or url: ref"
+    return text
+
+
+def _blob_ref(ref: dict[str, Any], message_id: str) -> str:
+    return f"ref: file {ref.get('name')} ({ref.get('size')} bytes), get it: aichat fetch {message_id}"
+
+
+def _ref(ref: dict[str, Any], message_id: str) -> str:
+    if ref["type"] == "blob":
+        return _blob_ref(ref, message_id)
+    if ref["type"] == "url":
+        return _url_ref(ref)
+    return f"ref: {_git_ref(ref)}"
+
+
 def _refs(msg: dict[str, Any]) -> list[str]:
-    return [
-        f"ref: {ref.get('url')}" if ref["type"] == "url" else f"ref: {_git_ref(ref)}"
-        for ref in msg.get("refs") or []
-    ]
+    return [_ref(ref, msg["id"]) for ref in msg.get("refs") or []]
 
 
 def render(msg: dict[str, Any]) -> str:

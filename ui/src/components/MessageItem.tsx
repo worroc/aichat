@@ -16,7 +16,14 @@ function safeUrl(url: string | null): string | null {
   }
 }
 
-function RefView({ r }: { r: Ref }) {
+function RefView({ r, messageId }: { r: Ref; messageId: string }) {
+  if (r.type === "blob") {
+    return (
+      <span title={r.sha256 ?? ""}>
+        file {r.name} ({r.size} bytes) <span className="muted">aichat fetch {messageId}</span>
+      </span>
+    );
+  }
   if (r.type === "url") {
     const href = safeUrl(r.url);
     return href ? (
@@ -24,7 +31,10 @@ function RefView({ r }: { r: Ref }) {
         {r.url}
       </a>
     ) : (
-      <span>{r.url}</span>
+      <span>
+        {r.url}
+        {r.machine && <span className="muted"> (on {r.machine})</span>}
+      </span>
     );
   }
   const parts = [r.repo, r.branch && `@${r.branch}`, r.commit && `#${r.commit.slice(0, 10)}`, r.path && `:${r.path}`];
@@ -99,7 +109,7 @@ export function MessageItem({ m, human, onOpenThread, showChannel, destination, 
             {marker === "reply" ? "↩" : "✉"}
           </span>
         )}
-        <strong className="sender">
+        <strong className="sender" title={m.sender_machine ? `on ${m.sender_machine}` : undefined}>
           {m.sender}
           {destination && <> &rarr; {destination}</>}
         </strong>
@@ -119,7 +129,7 @@ export function MessageItem({ m, human, onOpenThread, showChannel, destination, 
         <ul className="refs" onClick={(e) => e.stopPropagation()}>
           {m.refs.map((r, i) => (
             <li key={i}>
-              <RefView r={r} />
+              <RefView r={r} messageId={m.id} />
             </li>
           ))}
         </ul>

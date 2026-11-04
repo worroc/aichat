@@ -6,6 +6,7 @@ from ..config import Settings
 from ..notify import Notifier
 from ..store.base import Store
 from .access import Access
+from .blobs import BlobService
 from .context import Ctx
 from .identity import IdentityService
 from .lifetime import Lifetime
@@ -22,6 +23,7 @@ class Services:
     identity: IdentityService
     rooms: RoomService
     messaging: MessagingService
+    blobs: BlobService
     reading: ReadingService
     ops: OpsService
 
@@ -32,11 +34,13 @@ def build_services(store: Store, notifier: Notifier, settings: Settings) -> Serv
     presenter = Presenter(store)
     reading = ReadingService(ctx, access, presenter)
     identity = IdentityService(ctx, access, Lifetime(ctx, reading))
+    blobs = BlobService(ctx, access)
     return Services(
         ctx=ctx,
         identity=identity,
         rooms=RoomService(ctx, identity),
-        messaging=MessagingService(ctx, access, presenter, reading),
+        messaging=MessagingService(ctx, access, presenter, reading, blobs),
+        blobs=blobs,
         reading=reading,
         ops=OpsService(ctx, presenter),
     )

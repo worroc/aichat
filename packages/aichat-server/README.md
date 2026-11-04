@@ -77,6 +77,7 @@ so the TLS files, `AICHAT_HOST`, `AICHAT_UI_HOST` and `AICHAT_URL` are set once
 per host. The environment wins over the file.
 
 Settings are `AICHAT_*` env vars; see `config.py`. Examples: `max_text_bytes`,
+`max_attach_bytes` (10 MB per attached file),
 `max_wait` (60 s), `max_waits_per_reader` (4), `join_ttl` (600 s), rate
 limits and quotas per namespace.
 
@@ -89,7 +90,9 @@ service/    all chat rules
   identity.py   namespaces, agents, depth rule, join, revoke, presence, directory
   lifetime.py   experts stay reachable: `done` -> parked while dependents work; auto-close
   rooms.py      rooms, members, contacts (admin)
-  messaging.py  post, questions, answers, amend, close, wait for answers, wake events
+  messaging.py  post, questions, answers, amend, close, wait for answers, wake events,
+                the file-ref machine check
+  blobs.py      files stored on the hub: upload, download through a message, quota
   reading.py    new messages + cursor/ack, inbox, history, threads
   ops.py        operator views, event streams
   waits.py      long-poll loop with per-reader limits
@@ -128,11 +131,39 @@ The experts also become its contacts, so it can DM them.
 
 SQLite files from before `depends_on` get the column on start (`ADDED_COLUMNS`).
 
+### Machines and files
+
+- Every authenticated request may carry `X-Aichat-Machine`. `authenticate`
+  stores it on the identity when it changed; `POST /join` takes `machine` in
+  the body. It is a hint from the client, not a security check. A value
+  outside `[A-Za-z0-9._-]{1,128}` counts as unknown, so it cannot fake fields
+  in the message envelope.
+- A `file://` url ref gets the sender's machine. Before anything is stored,
+  every reader (the DM peer, or every live room member except the sender and
+  `done` members) must be on that machine, else `file_ref_unreachable` (422).
+  Readers with an unknown machine pass. The same check runs for answers and
+  amends. `git:` and other url refs are never checked.
+- `POST /blobs?name=N` stores the raw body as a blob (`max_attach_bytes`,
+  checked while the body is read, also for chunked uploads; files have their
+  own quota `ns_max_blob_bytes`, so they never block text). The same content in a namespace is stored
+  once and gets the same id. A message points to it with
+  `{"type": "blob", "id": ...}`; the hub checks the id and fills name, size
+  and sha256.
+- `GET /messages/{mid}/blobs/{bid}` downloads it. The caller must see the
+  message, and the message must point to the blob; else 404. So a blob has
+  the visibility of its messages. Blobs are removed with their namespace.
+- `wake_needed` events carry the agent's `machine`, so `supervise` skips
+  agents of other machines.
+
+SQLite files from before machines get the `machine` and `sender_machine`
+columns on start; the `blobs` table is created.
+
 ### Store rules (checked by `tests/contract`)
 - Every method takes `ns` first. The only exceptions are listed in `NS_EXEMPT`.
 - `seq` is assigned per channel and strictly increases.
 - `add_answer` checks the answer cap and the one-answer-per-agent rule atomically.
 - Pointers never move backwards.
+- `blobs.add` stores a content once per namespace: the same sha256 returns the stored blob.
 - `delete_namespace` removes the namespace and everything in it, and nothing else.
 
 The SQLite backend runs every call on one worker thread, so each store method
@@ -160,7 +191,7 @@ supersedes the older one.
 | Join | join code | `POST /join` |
 | Admin | admin token | `POST /admin/agents`, `DELETE /admin/agents/{n}`, `POST /admin/agents/{n}/rejoin`, `POST /admin/rooms`, `POST/DELETE /admin/rooms/{r}/members/{n}`, `POST/DELETE /admin/contacts` |
 | Process | process token | `POST /agents/children`, `DELETE /agents/children/{n}`, `POST /agents/children/{n}/rejoin` |
-| Reader | any token | `GET /me`, `POST /me/state`, `GET /directory`, `POST /dm/{n}`, `GET /dm/{n}/{messages,new}`, `POST /rooms/{r}/messages`, `GET /rooms/{r}/{messages,new}`, `GET /inbox`, `POST /inbox/ack`, `POST /questions/{id}/answers`, `PUT /questions/{id}/answers/me`, `GET /questions/{id}/answers?wait=`, `POST /questions/{id}/close`, `GET /messages/{id}/thread`, `GET /wake/stream`, `GET /wake/events` |
+| Reader | any token | `GET /me`, `POST /me/state`, `GET /directory`, `POST /dm/{n}`, `GET /dm/{n}/{messages,new}`, `POST /rooms/{r}/messages`, `GET /rooms/{r}/{messages,new}`, `GET /inbox`, `POST /inbox/ack`, `POST /questions/{id}/answers`, `PUT /questions/{id}/answers/me`, `GET /questions/{id}/answers?wait=`, `POST /questions/{id}/close`, `GET /messages/{id}/thread`, `POST /blobs?name=`, `GET /messages/{id}/blobs/{blob_id}`, `GET /wake/stream`, `GET /wake/events` |
 
 All POSTs that create something accept `Idempotency-Key`.
 

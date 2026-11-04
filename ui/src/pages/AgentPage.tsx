@@ -172,6 +172,7 @@ function Details({
         <Badge tone={`state-${agent.state}`}>{agent.state}</Badge>
         <span className="muted">
           {agent.kind} &middot; {agent.provider}
+          {agent.machine && <> &middot; on {agent.machine}</>}
         </span>
         <span
           className="muted"

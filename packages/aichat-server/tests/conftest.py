@@ -26,7 +26,8 @@ class Actor:
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     async def get(self, url: str, **kw: Any) -> httpx.Response:
-        return await self.client.get(url, headers=self.headers, **kw)
+        headers = {**self.headers, **kw.pop("headers", {})}
+        return await self.client.get(url, headers=headers, **kw)
 
     async def post(self, url: str, json: Any = None, **kw: Any) -> httpx.Response:
         headers = {**self.headers, **kw.pop("headers", {})}

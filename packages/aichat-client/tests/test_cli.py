@@ -12,10 +12,12 @@ from aichat_client import envelope
 from aichat_protocol import envfile
 from aichat_client.cli.admin import child_env
 from aichat_client.cli.common import parse_ref
+from aichat_client.cli.reader import _safe_name
 from aichat_client.cli.main import app
 from aichat_client.cli.session import slug
 from aichat_client.cli.supervise import Supervisor, build_argv, latest_seq
 from aichat_client.http import HubClient
+from aichat_client.machine import machine_id
 from aichat_client.profile import load_profile
 from aichat_server import tls
 from aichat_server.config import Settings
@@ -52,7 +54,7 @@ def cli(hub_url, tmp_path, monkeypatch):
     monkeypatch.setenv("AICHAT_HOME", str(tmp_path))
     monkeypatch.setenv("AICHAT_URL", hub_url)
     monkeypatch.setenv("AICHAT_OPERATOR_KEY", OP)
-    for var in ("AICHAT_TOKEN", "AICHAT_PROFILE", "AICHAT_JOIN", "AICHAT_REQUIRE_PROFILE"):
+    for var in ("AICHAT_TOKEN", "AICHAT_PROFILE", "AICHAT_JOIN", "AICHAT_REQUIRE_PROFILE", "AICHAT_MACHINE"):
         monkeypatch.delenv(var, raising=False)
     runner = CliRunner()
 
@@ -384,3 +386,100 @@ def test_cli_reads_url_and_ca_from_env_file(cli, tls_hub_url, tmp_path, monkeypa
     assert cli.json("ops", "ns-create", "--title", "from env file")["title"] == "from env file"
     monkeypatch.setenv("AICHAT_URL", "http://127.0.0.1:1")  # the environment wins over the file
     cli("ops", "ns-list", code=1)
+
+
+# --- machines and attached files -------------------------------------------------------
+
+
+def test_machine_id_from_env_or_hostname(monkeypatch):
+    monkeypatch.setenv("AICHAT_MACHINE", "box-1")
+    assert machine_id() == "box-1"
+    monkeypatch.delenv("AICHAT_MACHINE")
+    assert machine_id() == socket.gethostname()
+
+
+def test_dir_and_me_show_machines(cli, monkeypatch):
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    _admin(cli)
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-b")
+    _agent(cli, "bob")
+    assert "machine=pc-b" in cli("--profile", "main", "dir").stdout
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    assert "machine=pc-a" in cli("--profile", "main", "me").stdout
+
+
+def test_file_ref_to_other_machine_refused(cli, monkeypatch, tmp_path):
+    f = tmp_path / "report.md"
+    f.write_text("x")
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-b")
+    _admin(cli)
+    _agent(cli, "bob")
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    out = cli("--profile", "main", "send", "--to", "bob", "see", "--ref", str(f), code=5)
+    assert "file_ref_unreachable" in out.output and "bob is on pc-b" in out.output
+    assert "--attach" in out.output
+
+
+def test_attach_and_fetch_across_machines(cli, monkeypatch, tmp_path):
+    f = tmp_path / "report.md"
+    f.write_bytes(b"# report\nall good\n")
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-b")
+    _admin(cli)
+    _agent(cli, "bob")
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    sent = cli.json("--profile", "main", "send", "--to", "bob", "see", "--attach", str(f))
+    mid = sent["message"]["id"]
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-b")
+    inbox = cli("--profile", "bob", "inbox").stdout
+    assert "from=main@pc-a" in inbox
+    assert f"ref: file report.md (18 bytes), get it: aichat fetch {mid}" in inbox
+    out = tmp_path / "got"
+    cli("--profile", "bob", "fetch", mid, "--out", str(out))
+    assert (out / "report.md").read_bytes() == f.read_bytes()
+    cli("--profile", "bob", "fetch", mid, "--out", str(out), code=1)  # exists: no overwrite
+    cli("--profile", "bob", "fetch", mid, "--out", str(out), "--force")
+
+
+def test_attach_missing_file(cli, tmp_path):
+    _admin(cli)
+    _agent(cli, "bob")
+    out = cli("--profile", "main", "send", "--to", "bob", "x", "--attach", str(tmp_path / "no"), code=1)
+    assert "no such file" in out.output
+
+
+def test_envelope_file_ref_on_other_machine(monkeypatch):
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-b")
+    msg = {
+        "id": "m1", "sender": "ann", "sender_role": "agent", "channel": "@bob", "kind": "information",
+        "seq": 1, "time": "t", "text": "x", "sender_machine": "pc-a",
+        "refs": [{"type": "url", "url": "file:///tmp/r.md", "machine": "pc-a"}],
+    }
+    out = envelope.render(msg)
+    assert "from=ann@pc-a" in out
+    assert "ref: file:///tmp/r.md (on pc-a) NOT on this machine" in out
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    assert "NOT on this machine" not in envelope.render(msg)
+
+
+def test_supervisor_skips_agent_on_other_machine(cli, hub_url, monkeypatch, capsys):
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    _admin(cli)
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-b")
+    _agent(cli, "far", "--resume-template", "true")
+    cli("--profile", "far", "park")
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-a")
+    admin = HubClient(hub_url, load_profile("main").token)
+    start = latest_seq(admin)
+    cli("--profile", "main", "send", "--to", "far", "wake")
+    event = admin.get("/wake/events", after=start)["events"][0]["data"]
+    assert event["machine"] == "pc-b"
+    sup = Supervisor(client=admin, max_processes=1, dry_run=False)
+    sup.wake(event)
+    assert sup.running == {}
+    assert "far is on pc-b: its own supervise must run there" in capsys.readouterr().err
+
+
+def test_fetch_save_name_is_plain():
+    assert _safe_name("C:evil.txt") == "C_evil.txt"
+    assert _safe_name("a/../b\\c.txt") == "c.txt"
+    assert _safe_name("..") == "file"

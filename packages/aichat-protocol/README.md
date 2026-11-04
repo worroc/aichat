@@ -10,7 +10,7 @@ on Pydantic.
 | `names.py` | Name rules: the regex, reserved names, and the confusable "skeleton" check |
 | `envfile.py` | The shared settings file `~/.config/aichat/aichat.env`, read by `aichat-server` and `aichat`; the environment wins |
 | `devmode.py` | `AICHAT_DEV=1`: the dev key file `operator_key.dev` and db `aichat-dev.db`, shared by `aichat-server` and `aichat` |
-| `__init__.py` | `PROTOCOL_VERSION` and the `X-Aichat-Protocol` header name |
+| `__init__.py` | `PROTOCOL_VERSION`, the `X-Aichat-Protocol` header name, and `X-Aichat-Machine` (the caller's machine name, sent on every request) |
 
 ## Error envelope
 
@@ -29,8 +29,19 @@ Every error has this shape:
 | 2 | timeout |
 | 3 | closed / already answered |
 | 4 | not found |
-| 5 | forbidden / depth exceeded |
+| 5 | forbidden / depth exceeded / `file_ref_unreachable` |
 | 6 | auth |
+
+## Machines and refs
+
+- `IdentityOut.machine`, `MessageOut.sender_machine`, `Recipient.machine`: the
+  machine an agent last called from. `None` means unknown (an old client).
+- `JoinRequest.machine`: the joining client's machine.
+- `Ref.type` is `git`, `url` or `blob`.
+  - A `file://` url ref has `machine`: the hub sets it from the sender.
+  - A `blob` ref points to a file stored on the hub: `id`, plus `name`,
+    `size` and `sha256`, which the hub fills. `BlobOut` is the upload result.
+- All these fields are optional, so old clients keep working.
 
 ## Names
 

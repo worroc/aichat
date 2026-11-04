@@ -4,6 +4,9 @@ Runs on the machine of whoever spawned the agents. It listens to the
 hub's wake events (for your children; the admin gets all) and runs each
 agent's ``resume_template``. It also caps how many resumed processes run
 at the same time - the hub itself never limits processes.
+
+An agent that runs on another machine is skipped: the supervise on that
+machine resumes it.
 """
 
 import json
@@ -15,6 +18,7 @@ from typing import Annotated, Any
 import typer
 
 from ..http import HubClient
+from ..machine import machine_id
 from ..profile import load_profile
 from .admin import child_env, log_path
 from .common import fail, guarded, opts
@@ -62,6 +66,10 @@ class Supervisor:
 
     def wake(self, event: dict[str, Any]) -> None:
         name = event["name"]
+        machine = event.get("machine")
+        if machine and machine != machine_id():
+            typer.echo(f"supervise: {name} is on {machine}: its own supervise must run there", err=True)
+            return
         if name in self.running or not still_parked(self.client, name):
             return
         if len(self.running) >= self.max_processes:

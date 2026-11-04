@@ -28,12 +28,26 @@ class ErrorBody(BaseModel):
 
 
 class Ref(BaseModel):
-    type: Literal["git", "url"]
+    type: Literal["git", "url", "blob"]
     repo: str | None = None
     branch: str | None = None
     commit: str | None = None
     path: str | None = None
     url: str | None = None
+    # A file:// url ref: the machine the file is on. The hub sets it from the sender.
+    machine: str | None = None
+    # A blob ref (a file stored on the hub): its id. The hub fills name, size and sha256.
+    id: str | None = None
+    name: str | None = None
+    size: int | None = None
+    sha256: str | None = None
+
+
+class BlobOut(BaseModel):
+    id: str
+    name: str
+    size: int
+    sha256: str
 
 
 # --- identities -----------------------------------------------------------
@@ -50,6 +64,7 @@ class IdentityOut(BaseModel):
     description: str
     last_seen: datetime | None
     depends_on: list[str] = Field(default_factory=list)
+    machine: str | None = None  # the host the agent last called from (None: unknown, old client)
 
 
 class RoomOut(BaseModel):
@@ -67,6 +82,7 @@ class MeResponse(BaseModel):
     state: State
     tags: list[str]
     provider: str
+    machine: str | None = None
     contacts: list[IdentityOut]
     rooms: list[RoomOut]
     children: list[str]
@@ -103,6 +119,7 @@ class CreateNamespaceResponse(BaseModel):
 
 class JoinRequest(BaseModel):
     code: str
+    machine: str | None = Field(default=None, max_length=128)
 
 
 class JoinResponse(BaseModel):
@@ -201,6 +218,7 @@ class MessageOut(BaseModel):
     expires_at: datetime | None
     refs: list[Ref]
     amended_at: datetime | None
+    sender_machine: str | None = None
 
 
 class Recipient(BaseModel):
@@ -208,6 +226,7 @@ class Recipient(BaseModel):
     state: State
     wake: Literal["queued", "none"]
     will_read: bool = True  # False when the recipient is done: nobody will read it
+    machine: str | None = None
 
 
 class PostResponse(BaseModel):

@@ -1,5 +1,6 @@
 """Namespaces, identities, join codes, revocation, presence and directory."""
 
+import re
 import uuid
 from dataclasses import replace
 from datetime import timedelta
@@ -40,6 +41,14 @@ from .lifetime import Lifetime
 from .present import identity_out
 
 TAG_PREFIX = "tag:"
+# Shown in the envelope header (from=bob@MACHINE): no spaces, brackets or newlines.
+MACHINE_RE = re.compile(r"[A-Za-z0-9._-]{1,128}")
+
+
+def clean_machine(raw: str | None) -> str | None:
+    """The machine a client claims: a hint, not a secret. Anything unusual means unknown."""
+    value = (raw or "").strip()
+    return value if MACHINE_RE.fullmatch(value) else None
 
 
 class IdentityService:
@@ -51,21 +60,24 @@ class IdentityService:
 
     # --- authentication -------------------------------------------------------
 
-    async def authenticate(self, token: str) -> Principal:
+    async def authenticate(self, token: str, machine: str | None = None) -> Principal:
+        """``machine``: the caller's ``X-Aichat-Machine`` header; stored when it changed."""
         cred = await self.store.credentials.resolve(hash_secret(token))
         if cred is None or cred.kind is not CredKind.TOKEN or cred.revoked:
             raise unauthorized()
         ident = await self.store.identities.get(cred.ns, cred.name)
         if ident is None or ident.revoked:
             raise unauthorized()
-        await self._touch(ident)
+        await self._touch(ident, clean_machine(machine))
         return Principal(ns=ident.ns, name=ident.name, role=ident.role, kind=ident.kind)
 
-    async def _touch(self, ident: Identity) -> None:
+    async def _touch(self, ident: Identity, machine: str | None) -> None:
         stamp = now()
         interval = timedelta(seconds=self.ctx.settings.last_seen_interval)
-        if ident.last_seen is None or stamp - ident.last_seen >= interval:
-            await self.store.identities.replace(ident.ns, replace(ident, last_seen=stamp))
+        moved = machine is not None and machine != ident.machine
+        if moved or ident.last_seen is None or stamp - ident.last_seen >= interval:
+            updated = replace(ident, last_seen=stamp, machine=machine or ident.machine)
+            await self.store.identities.replace(ident.ns, updated)
 
     # --- namespaces -----------------------------------------------------------
 
@@ -256,7 +268,7 @@ class IdentityService:
 
     # --- join -------------------------------------------------------------------
 
-    async def join(self, code: str) -> wire.JoinResponse:
+    async def join(self, code: str, machine: str | None = None) -> wire.JoinResponse:
         async with self.store.tx():
             cred = await self.store.credentials.resolve(hash_secret(code))
             if cred is None or cred.kind is not CredKind.JOIN:
@@ -269,19 +281,22 @@ class IdentityService:
             if cred.revoked or expired or ident is None or ident.revoked:
                 raise unauthorized("join code expired or revoked")
             token = new_secret(TOKEN_PREFIX)
-            await self._consume_join(cred, ident, token)
+            await self._consume_join(cred, ident, token, clean_machine(machine))
         await self.ctx.audit(ident.ns, ident.name, "agent.join")
         await self.ctx.emit(ident.ns, "agent_joined", {"name": ident.name})
         return wire.JoinResponse(
             name=ident.name, token=token, role=ident.role.value, kind=ident.kind.value
         )
 
-    async def _consume_join(self, cred: Credential, ident: Identity, token: str) -> None:
+    async def _consume_join(
+        self, cred: Credential, ident: Identity, token: str, machine: str | None
+    ) -> None:
         await self.store.credentials.replace(cred.ns, replace(cred, used_at=now()))
         await self._revoke_tokens(ident.ns, ident.name)
         await self.store.credentials.add(ident.ns, self._token_cred(ident.ns, ident.name, token))
         state = State.ACTIVE if ident.state in {State.PENDING, State.PARKED} else ident.state
-        await self.store.identities.replace(ident.ns, replace(ident, state=state, last_seen=now()))
+        updated = replace(ident, state=state, last_seen=now(), machine=machine or ident.machine)
+        await self.store.identities.replace(ident.ns, updated)
 
     def _token_cred(self, ns: str, name: str, token: str) -> Credential:
         return Credential(
@@ -419,6 +434,7 @@ class IdentityService:
             state=ident.state.value,
             tags=sorted(ident.tags),
             provider=ident.provider,
+            machine=ident.machine,
             contacts=[
                 identity_out(identities[c], visible) for c in sorted(contacts) if c in identities
             ],

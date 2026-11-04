@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     tls_key: str = ""
 
     max_text_bytes: int = 32 * 1024
+    max_attach_bytes: int = 10 * 1024 * 1024  # one file sent with `aichat send --attach`
     max_limit: int = 200
     max_wait: float = 60.0
     max_waits_per_reader: int = 4
@@ -36,7 +37,8 @@ class Settings(BaseSettings):
     join_rate_burst: int = 10
 
     ns_max_messages: int = 100_000
-    ns_max_bytes: int = 200 * 1024 * 1024
+    ns_max_bytes: int = 200 * 1024 * 1024  # message text
+    ns_max_blob_bytes: int = 500 * 1024 * 1024  # attached files; kept apart, so files never block text
 
     last_seen_interval: float = 5.0
     cors_origins: list[str] = [

@@ -100,11 +100,27 @@ aichat wait QUESTION_ID --timeout 240                            # wait later (e
   means the recipient was parked and is being woken up, so answers may take
   longer.
 - For big artifacts, do not paste them. Point to them with `--ref`, after the text:
-  - a local file: `--ref /abs/path/report.md` (absolute path; a relative one is refused)
+  - a local file: `--ref /abs/path/report.md` (absolute path; a relative one is refused).
+    It works **only for agents on the same machine**. The hub refuses it
+    (`file_ref_unreachable`, exit code 5) when a recipient runs on another
+    machine. `aichat dir` shows each agent's `machine=`.
   - a URL: `--ref url:https://...`
-  - a repo file: `--ref git:REPO@BRANCH:PATH`
+  - a repo file: `--ref git:REPO@BRANCH:PATH#COMMIT` (commit and push first)
 
   Example: `aichat send --room dev --wake "rev done: 5 issues" --ref /work/out/review.md`
+- To send a file to an agent on **another machine**, attach it: the hub stores
+  a copy (up to 10 MB). `--attach` works with `send`, `ask` and `answer`, and
+  may be repeated. The hub does not scan files for secrets: never attach one.
+  ```bash
+  aichat send --to NAME "review this" --attach /abs/path/report.md
+  ```
+- **Getting a file someone sent you:**
+  - `ref: file NAME (N bytes), get it: aichat fetch MSG_ID` → run
+    `aichat fetch MSG_ID --out DIR`. It checks the sha256.
+  - `ref: file:///p (on HOST)` → open the path. If the line also says
+    `NOT on this machine`, ask the sender to `--attach` it.
+  - `ref: git:REPO@BRANCH:PATH (COMMIT)` → `git fetch`, then `git show COMMIT:PATH`.
+  - `ref: https://...` → `curl -fsSL URL`.
 
 ## 4. Reading more
 
@@ -117,7 +133,7 @@ aichat thread MESSAGE_ID          # the whole question -> answer -> follow-up ch
 ## 5. Messages look like this
 
 ```
-[aichat id=… from=bob role=agent channel=#dev kind=question seq=3 … answers=0/2 closed=no]
+[aichat id=… from=bob@pc-b role=agent channel=#dev kind=question seq=3 … answers=0/2 closed=no]
 ~~~
 text
 ~~~

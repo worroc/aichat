@@ -23,6 +23,7 @@ from aichat_protocol.errors import ErrorCode
 
 from ..domain import (
     AuditEntry,
+    Blob,
     Channel,
     ChannelKind,
     Closed,
@@ -245,6 +246,7 @@ class MemoryMessages:
             max_agents_answers=new.max_agents_answers,
             expires_at=new.expires_at,
             refs=new.refs,
+            sender_machine=new.sender_machine,
         )
         self._items[(ns, message_id)] = message
         ids.append(message_id)
@@ -323,6 +325,34 @@ def _matches(m: Message, flt: MessageFilter) -> bool:
         flt.before_seq is None or flt.channel_id is not None or m.seq < flt.before_seq,
     )
     return all(checks)
+
+
+class MemoryBlobs:
+    def __init__(self) -> None:
+        self._items: dict[tuple[str, str], Blob] = {}
+        self._by_hash: dict[tuple[str, str], str] = {}
+
+    async def add(self, ns: str, blob: Blob) -> Blob:
+        existing = self._by_hash.get((ns, blob.sha256))
+        if existing is not None:
+            return replace(self._items[(ns, existing)], data=b"")
+        self._items[(ns, blob.id)] = replace(blob, ns=ns)
+        self._by_hash[(ns, blob.sha256)] = blob.id
+        return replace(blob, ns=ns, data=b"")
+
+    async def get(self, ns: str, blob_id: str) -> Blob | None:
+        blob = self._items.get((ns, blob_id))
+        return None if blob is None else replace(blob, data=b"")
+
+    async def read(self, ns: str, blob_id: str) -> Blob | None:
+        return self._items.get((ns, blob_id))
+
+    async def usage(self, ns: str) -> int:
+        return sum(b.size for (n, _), b in self._items.items() if n == ns)
+
+    def _drop(self, ns: str) -> None:
+        _drop_keys(self._items, ns)
+        _drop_keys(self._by_hash, ns)
 
 
 class MemoryPointers:
@@ -416,6 +446,7 @@ class MemoryStore:
         self.channels = MemoryChannels()
         self.memberships = MemoryMemberships()
         self.messages = MemoryMessages()
+        self.blobs = MemoryBlobs()
         self.pointers = MemoryPointers()
         self.idempotency = MemoryIdempotency()
         self.audit = MemoryAudit()
@@ -431,7 +462,7 @@ class MemoryStore:
     async def delete_namespace(self, ns: str) -> None:
         repos = (
             self.identities, self.credentials, self.contacts, self.channels, self.memberships,
-            self.messages, self.pointers, self.idempotency, self.audit, self.events,
+            self.messages, self.blobs, self.pointers, self.idempotency, self.audit, self.events,
             self.namespaces,
         )
         for repo in repos:

@@ -18,6 +18,7 @@ class ErrorCode(StrEnum):
     RECIPIENT_DONE = "recipient_done"
     UNREAD_PENDING = "unread_pending"
     SECRET_IN_TEXT = "secret_in_text"
+    FILE_REF_UNREACHABLE = "file_ref_unreachable"
     PAYLOAD_TOO_LARGE = "payload_too_large"
     RATE_LIMITED = "rate_limited"
     TOO_MANY_WAITS = "too_many_waits"
@@ -40,6 +41,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.RECIPIENT_DONE: 409,
     ErrorCode.UNREAD_PENDING: 409,
     ErrorCode.SECRET_IN_TEXT: 422,
+    ErrorCode.FILE_REF_UNREACHABLE: 422,
     ErrorCode.PAYLOAD_TOO_LARGE: 413,
     ErrorCode.RATE_LIMITED: 429,
     ErrorCode.TOO_MANY_WAITS: 429,
@@ -65,6 +67,7 @@ EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: ExitCode.NOT_FOUND,
     ErrorCode.FORBIDDEN: ExitCode.FORBIDDEN,
     ErrorCode.DEPTH_EXCEEDED: ExitCode.FORBIDDEN,
+    ErrorCode.FILE_REF_UNREACHABLE: ExitCode.FORBIDDEN,
     ErrorCode.UNAUTHORIZED: ExitCode.AUTH,
 }
 

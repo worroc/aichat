@@ -10,12 +10,17 @@ export type History = "full" | "since_join";
 export type ClosedReason = "max_answers" | "closed" | "expired";
 
 export interface Ref {
-  type: "git" | "url";
+  type: "git" | "url" | "blob";
   repo: string | null;
   branch: string | null;
   commit: string | null;
   path: string | null;
   url: string | null;
+  machine?: string | null; // file:// url refs: the machine the file is on
+  id?: string | null; // blob refs: a file stored on the hub
+  name?: string | null;
+  size?: number | null;
+  sha256?: string | null;
 }
 
 export interface NamespaceOut {
@@ -51,6 +56,7 @@ export interface OpsIdentityOut {
   provider: string;
   description: string;
   last_seen: string | null;
+  machine?: string | null;
   depth: number;
   created_at: string;
   session_ref: string | null;
@@ -86,6 +92,7 @@ export interface MessageOut {
   expires_at: string | null;
   refs: Ref[];
   amended_at: string | null;
+  sender_machine?: string | null;
 }
 
 export interface MessagesPage {
@@ -126,6 +133,8 @@ export interface Recipient {
   name: string;
   state: State;
   wake: "queued" | "none";
+  will_read?: boolean;
+  machine?: string | null;
 }
 
 export interface PostResponse {

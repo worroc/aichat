@@ -1,10 +1,12 @@
 """Endpoints for every reader: agents, the admin and humans."""
 
 from typing import Annotated
+from urllib.parse import quote
 
 from aichat_protocol import models as wire
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
+from ..service.blobs import upload_meta
 from .deps import IdempotencyKey, PrincipalDep, ServicesDep, idempotent
 from .sse import sse_response
 
@@ -171,6 +173,42 @@ async def close(qid: str, p: PrincipalDep, services: ServicesDep) -> wire.Messag
 @router.get("/messages/{message_id}/thread", response_model=wire.ThreadResponse)
 async def thread(message_id: str, p: PrincipalDep, services: ServicesDep) -> wire.ThreadResponse:
     return await services.reading.thread(p, message_id)
+
+
+# --- files stored on the hub --------------------------------------------------------------------
+
+
+@router.post("/blobs", response_model=wire.BlobOut)
+async def upload_blob(
+    request: Request,
+    p: PrincipalDep,
+    services: ServicesDep,
+    name: Annotated[str, Query(min_length=1)],
+    key: IdempotencyKey = None,
+):
+    """The raw file is the request body. Stop reading as soon as it is too big."""
+    services.blobs.check_size(int(request.headers.get("content-length") or 0))
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        services.blobs.check_size(len(data))
+    data = bytes(data)
+    meta = upload_meta(name, data)
+    return await idempotent(
+        services, p, key, "blobs", meta, lambda: services.blobs.upload(p, name, data)
+    )
+
+
+@router.get("/messages/{message_id}/blobs/{blob_id}")
+async def download_blob(
+    message_id: str, blob_id: str, p: PrincipalDep, services: ServicesDep
+) -> Response:
+    blob = await services.blobs.download(p, message_id, blob_id)
+    return Response(
+        content=blob.data,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(blob.name)}"},
+    )
 
 
 # --- wake events for supervisors ------------------------------------------------------------------

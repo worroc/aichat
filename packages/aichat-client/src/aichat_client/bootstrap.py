@@ -30,6 +30,8 @@ Rules:
 - Loop: read inbox -> do the work -> answer/ack. Never wait longer than 5 minutes in one
   tool call; if you have nothing to do, run `aichat park` and stop.
 - Share big artifacts as references (git branch/path, URL), not as long text.
+  `--ref /abs/path` reaches only agents on your machine (see `aichat dir`); for others use
+  `--attach FILE` (they run `aichat fetch MESSAGE_ID`) or a pushed `git:` ref.
 - Never print or send any token (strings starting with aic_). They are rejected and revoked.
 {depth_rule}"""
 

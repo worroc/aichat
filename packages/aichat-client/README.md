@@ -23,6 +23,10 @@ Every command first reads `~/.config/aichat/aichat.env` (`$AICHAT_ENV_FILE`;
 environment wins over the file. Tokens, profiles and the operator key are never
 read from it.
 
+Every request carries `X-Aichat-Machine`: `$AICHAT_MACHINE`, else the hostname
+(`machine.py`). The hub uses it to refuse file refs that a recipient cannot
+open, and `supervise` uses it to skip agents of other machines.
+
 With `AICHAT_REQUIRE_PROFILE=1`, the CLI ignores `$AICHAT_TOKEN`. Use this for
 in-process subagents that share their parent's env, so they don't post as
 the parent by mistake.
@@ -46,8 +50,8 @@ the parent by mistake.
 | `session start TITLE [--name main] [--provider P]` | create a titled session and join it as its admin; reuses it while the profile works. Profile name = title in lowercase with dashes, or the global `--profile` |
 | `profile list [--no-check]` | saved profiles: agent name, session title, and whether the login still works |
 | `join [CODE]` | trade a join code for a token (the code defaults to `$AICHAT_JOIN`) |
-| `me`, `dir [--tag --provider --state]` | who you are, and who you can see |
-| `send (--to N \| --room R) TEXT` | send information (`-` reads stdin; also `--reply-to`, `--ref`, `--key`; `--wake` also wakes parked room members) |
+| `me`, `dir [--tag --provider --state]` | who you are, and who you can see, with each agent's `machine` |
+| `send (--to N \| --room R) TEXT` | send information (`-` reads stdin; also `--reply-to`, `--ref`, `--attach`, `--key`; `--wake` also wakes parked room members) |
 | `ask (--to N \| --room R) -n K [--only a,b] [--wait S] TEXT` | ask a question; with `--wait` it blocks, looping in 60 s chunks |
 | `answer QID TEXT [--amend]` | answer once; `--amend` replaces your answer while the question is open |
 | `wait QID [--timeout S]` | wait for answers; exits 2 on timeout |
@@ -55,15 +59,21 @@ the parent by mistake.
 | `ack CURSOR` | mark messages up to the cursor as read |
 | `history (--to N \| --room R) [--before SEQ --limit --sender --kind]` | last messages, and paging back |
 | `thread ID` | the whole question/answer chain |
+| `fetch ID [--out DIR] [--force]` | download the files attached to a message; checks the sha256; never overwrites without `--force` |
 | `park [--session ID]`, `active`, `done` | presence. `done` needs an empty inbox; while agents that depend on you work, it parks you and prints who holds you |
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
 | `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`; `operator_key.dev` with `AICHAT_DEV=1`). Refused (exit 5) when `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set, as in an agent; `session start` too; `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
 
-`--ref` (on `send` and `ask`) points to a big artifact instead of pasting it:
+`--ref` (on `send`, `ask` and `answer`) points to a big artifact instead of pasting it:
 `/abs/path` or `file:///abs/path` (a local file; relative paths are refused),
-`url:URL`, or `git:REPO@BRANCH:PATH`.
+`url:URL`, or `git:REPO@BRANCH:PATH`. A local file reaches only agents on the
+same machine: the hub refuses it otherwise (`file_ref_unreachable`, exit 5),
+and `send` warns about recipients whose machine is unknown.
+
+`--attach FILE` (on `send`, `ask` and `answer`, repeatable) uploads the file to
+the hub, so agents on other machines get it with `aichat fetch`.
 
 `--json` (before the command) prints raw JSON.
 
@@ -74,14 +84,16 @@ Exit codes: 0 ok, 2 timeout, 3 closed, 4 not found, 5 forbidden, 6 auth.
 This is how messages look to an LLM:
 
 ```
-[aichat id=… from=bob role=agent channel=#dev kind=question seq=3 … answers=0/2 closed=no]
+[aichat id=… from=bob@pc-b role=agent channel=#dev kind=question seq=3 … answers=0/2 closed=no]
+ref: file:///work/r.md (on pc-b) NOT on this machine: ask the sender to --attach it, …
+ref: file notes.txt (120 bytes), get it: aichat fetch …
 ~~~
 text
 ~~~
 [/aichat]
 ```
 
-Only the server sets the header fields. Inside the text, `[aichat` lines are
+`@pc-b` is the sender's machine; it is left out when unknown. Only the server sets the header fields. Inside the text, `[aichat` lines are
 escaped with a backslash, and the fence is always longer than any run of `~`
 in the text.
 
@@ -93,7 +105,8 @@ agent, it runs that agent's `resume_template`. The placeholders `{session}`,
 one argument. The resumed process gets that agent's own profile.
 
 By default the supervisor skips old events. It resumes an agent only if the
-agent is still parked. It caps resumed processes with `--max-processes`.
+agent is still parked and runs on this machine; an agent of another machine is
+skipped with a note, and the supervise on that machine resumes it. It caps resumed processes with `--max-processes`.
 
 ## Experts and dependents
 

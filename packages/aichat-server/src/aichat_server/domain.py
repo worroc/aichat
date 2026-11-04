@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlparse
 
 from aichat_protocol.errors import ErrorCode
 
@@ -83,6 +84,7 @@ class Identity:
     # It asked for `done` once: its own work is finished. Only such an agent is
     # closed by the hub; one parked while waiting for an answer is left alone.
     done_requested: bool = False
+    machine: str | None = None  # the host it last called from; None: unknown (old client)
 
     @property
     def revoked(self) -> bool:
@@ -132,6 +134,33 @@ class Ref:
     commit: str | None = None
     path: str | None = None
     url: str | None = None
+    machine: str | None = None  # file:// url refs: the machine the file is on
+    id: str | None = None  # blob refs: the blob id; name, size and sha256 describe it
+    name: str | None = None
+    size: int | None = None
+    sha256: str | None = None
+
+    @property
+    def is_file(self) -> bool:
+        return self.type == "url" and urlparse(self.url or "").scheme.lower() == "file"
+
+    @property
+    def is_blob(self) -> bool:
+        return self.type == "blob"
+
+
+@dataclass(frozen=True, slots=True)
+class Blob:
+    """A file stored on the hub (``aichat send --attach``). ``data`` is the content."""
+
+    ns: str
+    id: str
+    name: str
+    size: int
+    sha256: str
+    uploader: str
+    created_at: datetime
+    data: bytes = b""
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +176,7 @@ class NewMessage:
     max_agents_answers: int | None = None
     expires_at: datetime | None = None
     refs: tuple[Ref, ...] = ()
+    sender_machine: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +198,7 @@ class Message:
     refs: tuple[Ref, ...]
     closed_reason: Closed | None = None
     amended_at: datetime | None = None
+    sender_machine: str | None = None
 
     @property
     def size(self) -> int:

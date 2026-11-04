@@ -14,13 +14,15 @@ from collections.abc import Iterator
 from typing import Any
 
 import httpx
-from aichat_protocol import PROTOCOL_HEADER, PROTOCOL_VERSION
+from aichat_protocol import MACHINE_HEADER, PROTOCOL_HEADER, PROTOCOL_VERSION
 
+from .machine import machine_id
 from .profile import ca_cert_path
 
 RETRIES = 3
 RETRY_DELAY = 0.5
 LONG_POLL_SLACK = 15.0
+UPLOAD_TIMEOUT = 300.0
 
 
 class HubError(Exception):
@@ -33,7 +35,7 @@ class HubError(Exception):
 
 class HubClient:
     def __init__(self, url: str, token: str | None = None, operator_key: str | None = None) -> None:
-        headers = {PROTOCOL_HEADER: PROTOCOL_VERSION}
+        headers = {PROTOCOL_HEADER: PROTOCOL_VERSION, MACHINE_HEADER: machine_id()}
         if token:
             headers["Authorization"] = f"Bearer {token}"
         if operator_key:
@@ -54,13 +56,16 @@ class HubClient:
         params: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
         timeout: float | None = None,
+        content: bytes | None = None,
+        raw: bool = False,
     ) -> Any:
+        """``content``: a raw request body. ``raw``: return the response bytes, not JSON."""
         headers = {"Idempotency-Key": idempotency_key} if idempotency_key else {}
         clean = {k: v for k, v in (params or {}).items() if v is not None}
         for attempt in range(RETRIES):
             try:
                 resp = self._http.request(
-                    method, path, json=json, params=clean, headers=headers,
+                    method, path, json=json, content=content, params=clean, headers=headers,
                     timeout=timeout or self._http.timeout,
                 )
             except httpx.TransportError:
@@ -68,6 +73,8 @@ class HubClient:
                     raise
                 time.sleep(RETRY_DELAY * (attempt + 1))
                 continue
+            if raw and resp.status_code == 200:
+                return resp.content
             return _decode(resp)
         raise RuntimeError("unreachable")
 
@@ -77,6 +84,16 @@ class HubClient:
 
     def create(self, path: str, body: Any, key: str | None = None) -> Any:
         return self.request("POST", path, json=body, idempotency_key=key or str(uuid.uuid4()))
+
+    def upload(self, path: str, data: bytes, name: str) -> Any:
+        """Send a file as the raw body; a retry reuses the key, so it is stored once."""
+        return self.request(
+            "POST", path, content=data, params={"name": name}, idempotency_key=str(uuid.uuid4()),
+            timeout=UPLOAD_TIMEOUT,
+        )
+
+    def download(self, path: str) -> bytes:
+        return self.request("GET", path, raw=True, timeout=UPLOAD_TIMEOUT)
 
     def post(self, path: str, body: Any = None) -> Any:
         return self.request("POST", path, json=body)

@@ -44,6 +44,7 @@ export function AgentTree({ ns, agents, now }: { ns: string; agents: OpsIdentity
           <th>role</th>
           <th>kind</th>
           <th>provider</th>
+          <th>machine</th>
           <th>state</th>
           <th>last seen</th>
           <th>tags</th>
@@ -63,6 +64,7 @@ export function AgentTree({ ns, agents, now }: { ns: string; agents: OpsIdentity
             </td>
             <td>{a.kind}</td>
             <td>{a.provider}</td>
+            <td>{a.machine ?? <span className="muted">?</span>}</td>
             <td>
               <Badge tone={`state-${a.state}`}>{a.state}</Badge>
             </td>

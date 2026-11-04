@@ -1,14 +1,18 @@
 """Commands every agent uses: join, read, send, ask, answer, presence."""
 
+import hashlib
 import os
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 
 from .. import envelope
 from ..http import HubClient
+from ..machine import machine_id
 from ..profile import Profile, save_profile
 from .common import (
+    attach_refs,
     channel_path,
     emit,
     fail,
@@ -26,11 +30,16 @@ Room = Annotated[str | None, typer.Option("--room", help="post in this room")]
 Text = Annotated[str | None, typer.Argument(help="message text, or '-' for stdin")]
 Refs = Annotated[list[str] | None, typer.Option("--ref", help="/abs/path or file:///abs/path (local file), url:URL, or git:REPO@BRANCH:PATH")]
 Key = Annotated[str | None, typer.Option("--key", help="idempotency key (safe re-run)")]
+Attach = Annotated[
+    list[str] | None,
+    typer.Option("--attach", help="send this file through the hub; readers get it with `aichat fetch`"),
+]
 
 
 def register(app: typer.Typer) -> None:
     for command in (
         join, me, send, ask, answer, inbox, ack, history, thread, wait, park, active, done, dir_,
+        fetch,
     ):
         name = "dir" if command is dir_ else command.__name__
         app.command(name)(command)
@@ -47,7 +56,7 @@ def join(
     if not code:
         fail("no join code: pass it or set AICHAT_JOIN")
     url = o.credentials().url
-    body = HubClient(url).post("/join", {"code": code})
+    body = HubClient(url).post("/join", {"code": code, "machine": machine_id()})
     name = o.profile or os.environ.get("AICHAT_PROFILE") or body["name"]
     path = save_profile(Profile(name=name, url=url, token=body["token"]))
     hint = "" if os.environ.get("AICHAT_PROFILE") == name else f"\nuse: export AICHAT_PROFILE={name}  (or --profile {name})"
@@ -64,15 +73,34 @@ def me(ctx: typer.Context) -> None:
     rooms = ", ".join(f"#{r['name']}" for r in data["rooms"]) or "(none)"
     text = (
         f"{data['name']} role={data['role']} kind={data['kind']} parent={data['parent']} "
-        f"state={data['state']}\ncontacts: {contacts}\nrooms: {rooms}"
+        f"state={data['state']} machine={data.get('machine') or '?'}"
+        f"\ncontacts: {contacts}\nrooms: {rooms}"
         + (f"\nchildren: {', '.join(data['children'])}" if data["children"] else "")
     )
     emit(o, data, text)
 
 
-def _post_body(text: str, refs: list[str] | None, reply_to: str | None, **extra: Any) -> dict:
-    body = {"text": text, "refs": [parse_ref(r) for r in refs or []], "reply_to": reply_to, **extra}
+def _refs(client: HubClient, refs: list[str] | None, attach: list[str] | None) -> list[dict]:
+    parsed = [parse_ref(r) for r in refs or []]  # check every --ref before uploading anything
+    return parsed + attach_refs(client, attach)
+
+
+def _post_body(text: str, refs: list[dict], reply_to: str | None, **extra: Any) -> dict:
+    body = {"text": text, "refs": refs, "reply_to": reply_to, **extra}
     return {k: v for k, v in body.items() if v is not None}
+
+
+def _warn_unknown_machines(body: dict, result: dict) -> None:
+    """The hub cannot check a file ref for readers on an old client; say so."""
+    if not any((r.get("url") or "").startswith("file://") for r in body.get("refs", [])):
+        return
+    unknown = [r["name"] for r in result["recipients"] if not r.get("machine") and r.get("will_read", True)]
+    if unknown:
+        typer.echo(
+            f"warning: machine of {', '.join(unknown)} is unknown; "
+            "they may not be able to open your file ref",
+            err=True,
+        )
 
 
 def _recipient(r: dict) -> str:
@@ -99,14 +127,18 @@ def send(
     room: Room = None,
     reply_to: Annotated[str | None, typer.Option("--reply-to")] = None,
     ref: Refs = None,
+    attach: Attach = None,
     key: Key = None,
     wake: Annotated[bool, typer.Option("--wake", help="room: also wake parked members")] = False,
 ) -> None:
     """Send information to a contact (--to) or a room (--room)."""
     o = opts(ctx)
     path = channel_path(to, room)
-    body = _post_body(read_text(text), ref, reply_to, kind="information", wake=wake or None)
-    result = o.client().create(path if to else f"{path}/messages", body, key)
+    message = read_text(text)
+    client = o.client()
+    body = _post_body(message, _refs(client, ref, attach), reply_to, kind="information", wake=wake or None)
+    result = client.create(path if to else f"{path}/messages", body, key)
+    _warn_unknown_machines(body, result)
     emit(o, result, _delivery(result))
 
 
@@ -122,17 +154,20 @@ def ask(
     expires_in: Annotated[float | None, typer.Option("--expires-in")] = None,
     reply_to: Annotated[str | None, typer.Option("--reply-to")] = None,
     ref: Refs = None,
+    attach: Attach = None,
     key: Key = None,
 ) -> None:
     """Ask a question. With --wait, block until it closes or the time runs out."""
     o = opts(ctx)
     path = channel_path(to, room)
-    body = _post_body(
-        read_text(text), ref, reply_to, kind="question", max_agents_answers=max_agents_answers,
-        to=split_names(only) or None, expires_in=expires_in,
-    )
+    message = read_text(text)
     client = o.client()
+    body = _post_body(
+        message, _refs(client, ref, attach), reply_to, kind="question",
+        max_agents_answers=max_agents_answers, to=split_names(only) or None, expires_in=expires_in,
+    )
     result = client.create(path if to else f"{path}/messages", body, key)
+    _warn_unknown_machines(body, result)
     if not wait:
         emit(o, result, _delivery(result) + f"\nwait with: aichat wait {result['message']['id']}")
         return
@@ -149,17 +184,20 @@ def answer(
     text: Text = None,
     amend: Annotated[bool, typer.Option("--amend", help="replace your earlier answer")] = False,
     ref: Refs = None,
+    attach: Attach = None,
     key: Key = None,
 ) -> None:
     """Answer a question (once per agent; --amend replaces it while open)."""
     o = opts(ctx)
-    body = {"text": read_text(text), "refs": [parse_ref(r) for r in ref or []]}
+    message = read_text(text)
     client = o.client()
+    body = {"text": message, "refs": _refs(client, ref, attach)}
     if amend:
         result = client.put(f"/questions/{question_id}/answers/me", body)
         emit(o, result, f"amended answer {result['id']}")
         return
     result = client.create(f"/questions/{question_id}/answers", body, key)
+    _warn_unknown_machines(body, result)
     emit(o, result, _delivery(result))
 
 
@@ -297,8 +335,52 @@ def dir_(
     o = opts(ctx)
     data = o.client().get("/directory", tag=tag, provider=provider, state=state)
     rows = [
-        f"{i['name']:<20} {i['kind']:<9} {i['provider']:<8} {i['state']:<8} tags={','.join(i['tags'])}"
+        f"{i['name']:<20} {i['kind']:<9} {i['provider']:<8} {i['state']:<8} "
+        f"machine={i.get('machine') or '?'} tags={','.join(i['tags'])}"
         + (f" depends_on={','.join(i['depends_on'])}" if i.get("depends_on") else "")
         for i in data["identities"]
     ]
     emit(o, data, "\n".join(rows) or "(nobody)")
+
+
+def _message(client: HubClient, message_id: str) -> dict:
+    found = client.get(f"/messages/{message_id}/thread")["messages"]
+    match = [m for m in found if m["id"] == message_id]
+    if not match:
+        fail(f"message {message_id} not found")
+    return match[0]
+
+
+def _safe_name(name: str) -> str:
+    """Only a plain file name: no folders, no drive letter (``C:x`` on Windows)."""
+    plain = Path(name.replace("\\", "/")).name.replace(":", "_").strip()
+    return plain if plain not in {"", ".", ".."} else "file"
+
+
+def _save_blob(client: HubClient, message_id: str, ref: dict, out: Path, force: bool) -> Path:
+    target = out / _safe_name(ref["name"])
+    if target.exists() and not force:
+        fail(f"{target} exists; use --force to overwrite or --out DIR")
+    data = client.download(f"/messages/{message_id}/blobs/{ref['id']}")
+    if hashlib.sha256(data).hexdigest() != ref["sha256"]:
+        fail(f"{ref['name']}: sha256 does not match; the download is damaged, try again")
+    target.write_bytes(data)
+    return target
+
+
+@guarded
+def fetch(
+    ctx: typer.Context,
+    message_id: Annotated[str, typer.Argument(help="the message with the attached files")],
+    out: Annotated[Path, typer.Option("--out", help="folder to save into")] = Path("."),
+    force: Annotated[bool, typer.Option("--force", help="overwrite files that exist")] = False,
+) -> None:
+    """Download the files attached to a message (sent with --attach)."""
+    o = opts(ctx)
+    client = o.client()
+    blobs = [r for r in _message(client, message_id)["refs"] if r["type"] == "blob"]
+    if not blobs:
+        fail(f"message {message_id} has no attached files")
+    out.mkdir(parents=True, exist_ok=True)
+    saved = [str(_save_blob(client, message_id, r, out, force)) for r in blobs]
+    emit(o, {"saved": saved}, "\n".join(f"saved {p}" for p in saved))

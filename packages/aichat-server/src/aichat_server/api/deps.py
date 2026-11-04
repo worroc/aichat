@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import Annotated, Any
 
+from aichat_protocol import MACHINE_HEADER
 from aichat_protocol.errors import ErrorCode
 from fastapi import Depends, Header, Request
 from pydantic import BaseModel
@@ -53,10 +54,12 @@ async def get_principal(
     request: Request,
     services: ServicesDep,
     authorization: Annotated[str | None, Header()] = None,
+    machine: Annotated[str | None, Header(alias=MACHINE_HEADER)] = None,
 ) -> Principal:
     if not authorization or not authorization.startswith("Bearer "):
         raise unauthorized("missing bearer token")
-    principal = await services.identity.authenticate(authorization.removeprefix("Bearer ").strip())
+    token = authorization.removeprefix("Bearer ").strip()
+    principal = await services.identity.authenticate(token, machine)
     _limit(request, "rate", f"{principal.ns}:{principal.name}")
     return principal
 

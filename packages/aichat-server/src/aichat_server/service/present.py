@@ -1,22 +1,28 @@
 """Convert domain objects into wire models. Never exposes the namespace id."""
 
+from dataclasses import asdict
+
 from aichat_protocol import models as wire
 
-from ..domain import Channel, Identity, Message, MsgKind, Ref
+from ..domain import Blob, Channel, Identity, Message, MsgKind, Ref
 from ..store.base import Store
 from .access import label
 
 
 def ref_out(ref: Ref) -> wire.Ref:
-    return wire.Ref(
-        type=ref.type, repo=ref.repo, branch=ref.branch, commit=ref.commit, path=ref.path, url=ref.url
-    )
+    return wire.Ref.model_validate(asdict(ref))
 
 
 def ref_in(ref: wire.Ref) -> Ref:
+    """The client's ref as sent. The messaging service sets ``machine`` and the blob fields."""
     return Ref(
-        type=ref.type, repo=ref.repo, branch=ref.branch, commit=ref.commit, path=ref.path, url=ref.url
+        type=ref.type, repo=ref.repo, branch=ref.branch, commit=ref.commit, path=ref.path, url=ref.url,
+        id=ref.id, name=ref.name,
     )
+
+
+def blob_out(blob: Blob) -> wire.BlobOut:
+    return wire.BlobOut(id=blob.id, name=blob.name, size=blob.size, sha256=blob.sha256)
 
 
 def identity_out(ident: Identity, visible: set[str] | None = None) -> wire.IdentityOut:
@@ -33,6 +39,7 @@ def identity_out(ident: Identity, visible: set[str] | None = None) -> wire.Ident
         description=ident.description,
         last_seen=ident.last_seen,
         depends_on=sorted(depends_on),
+        machine=ident.machine,
     )
 
 
@@ -75,6 +82,7 @@ class Presenter:
             expires_at=msg.expires_at,
             refs=[ref_out(r) for r in msg.refs],
             amended_at=msg.amended_at,
+            sender_machine=msg.sender_machine,
         )
 
     async def messages(self, items: list[Message], viewer: str | None) -> list[wire.MessageOut]:

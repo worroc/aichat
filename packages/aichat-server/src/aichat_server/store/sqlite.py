@@ -26,6 +26,7 @@ from aichat_protocol.errors import ErrorCode
 
 from ..domain import (
     AuditEntry,
+    Blob,
     Channel,
     ChannelKind,
     Closed,
@@ -59,7 +60,7 @@ CREATE TABLE IF NOT EXISTS identities (
     tags TEXT NOT NULL, provider TEXT NOT NULL, description TEXT NOT NULL,
     session_ref TEXT, resume_template TEXT, created_at TEXT NOT NULL, last_seen TEXT,
     depends_on TEXT NOT NULL DEFAULT '[]', done_requested INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (ns, name)
+    machine TEXT, PRIMARY KEY (ns, name)
 );
 CREATE TABLE IF NOT EXISTS credentials (
     hash TEXT PRIMARY KEY, ns TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
@@ -84,10 +85,15 @@ CREATE TABLE IF NOT EXISTS messages (
     kind TEXT NOT NULL, text TEXT NOT NULL, reply_to TEXT, thread_id TEXT NOT NULL,
     recipients TEXT NOT NULL, max_agents_answers INTEGER, expires_at TEXT, refs TEXT NOT NULL,
     closed_reason TEXT, amended_at TEXT, size INTEGER NOT NULL, answer_to TEXT,
-    UNIQUE (ns, id), UNIQUE (ns, channel_id, seq)
+    sender_machine TEXT, UNIQUE (ns, id), UNIQUE (ns, channel_id, seq)
 );
 CREATE INDEX IF NOT EXISTS messages_thread ON messages (ns, thread_id);
 CREATE INDEX IF NOT EXISTS messages_answers ON messages (ns, answer_to);
+CREATE TABLE IF NOT EXISTS blobs (
+    ns TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL,
+    sha256 TEXT NOT NULL, uploader TEXT NOT NULL, created_at TEXT NOT NULL, data BLOB NOT NULL,
+    PRIMARY KEY (ns, id), UNIQUE (ns, sha256)
+);
 CREATE TABLE IF NOT EXISTS pointers (
     ns TEXT NOT NULL, reader TEXT NOT NULL, channel_id TEXT NOT NULL, seq INTEGER NOT NULL,
     PRIMARY KEY (ns, reader, channel_id)
@@ -115,6 +121,7 @@ NS_TABLES = (
     ("channels", "ns"),
     ("memberships", "ns"),
     ("messages", "ns"),
+    ("blobs", "ns"),
     ("pointers", "ns"),
     ("idempotency", "ns"),
     ("audit", "ns"),
@@ -127,11 +134,13 @@ NS_TABLES = (
 ADDED_COLUMNS = (
     ("identities", "depends_on", "TEXT NOT NULL DEFAULT '[]'"),
     ("identities", "done_requested", "INTEGER NOT NULL DEFAULT 0"),
+    ("identities", "machine", "TEXT"),
+    ("messages", "sender_machine", "TEXT"),
 )
 
 MESSAGE_COLS = (
     "ns, id, channel_id, seq, time, sender, sender_role, kind, text, reply_to, thread_id, "
-    "recipients, max_agents_answers, expires_at, refs, closed_reason, amended_at"
+    "recipients, max_agents_answers, expires_at, refs, closed_reason, amended_at, sender_machine"
 )
 
 
@@ -230,7 +239,7 @@ class SqliteIdentities:
     def _add(self, ns: str, i: Identity) -> None:
         try:
             self._db.run(
-                "INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 *_identity_row(ns, i),
             )
         except sqlite3.IntegrityError:
@@ -256,7 +265,7 @@ class SqliteIdentities:
         changed = self._db.run(
             "UPDATE identities SET uid = ?, role = ?, kind = ?, parent = ?, depth = ?, state = ?,"
             " tags = ?, provider = ?, description = ?, session_ref = ?, resume_template = ?,"
-            " created_at = ?, last_seen = ?, depends_on = ?, done_requested = ?"
+            " created_at = ?, last_seen = ?, depends_on = ?, done_requested = ?, machine = ?"
             " WHERE ns = ? AND name = ?",
             *row[2:], ns, i.name,
         )
@@ -269,7 +278,7 @@ def _identity_row(ns: str, i: Identity) -> tuple[Any, ...]:
         ns, i.name, i.uid, i.role.value, i.kind.value, i.parent, i.depth, i.state.value,
         json.dumps(sorted(i.tags)), i.provider, i.description, i.session_ref,
         i.resume_template, _ts(i.created_at), _ts(i.last_seen), json.dumps(sorted(i.depends_on)),
-        int(i.done_requested),
+        int(i.done_requested), i.machine,
     )
 
 
@@ -292,6 +301,7 @@ def _identity(row: sqlite3.Row) -> Identity:
         last_seen=_dt(row["last_seen"]),
         depends_on=frozenset(json.loads(row["depends_on"])),
         done_requested=bool(row["done_requested"]),
+        machine=row["machine"],
     )
 
 
@@ -532,10 +542,11 @@ class SqliteMessages:
             max_agents_answers=new.max_agents_answers,
             expires_at=new.expires_at,
             refs=new.refs,
+            sender_machine=new.sender_machine,
         )
         self._db.run(
             f"INSERT INTO messages ({MESSAGE_COLS}, size, answer_to)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             *_message_row(message), message.size, answer_to,
         )
         return message
@@ -549,7 +560,7 @@ class SqliteMessages:
             "UPDATE messages SET channel_id = ?, seq = ?, time = ?, sender = ?, sender_role = ?,"
             " kind = ?, text = ?, reply_to = ?, thread_id = ?, recipients = ?,"
             " max_agents_answers = ?, expires_at = ?, refs = ?, closed_reason = ?,"
-            " amended_at = ?, size = ? WHERE ns = ? AND id = ?",
+            " amended_at = ?, sender_machine = ?, size = ? WHERE ns = ? AND id = ?",
             *row[2:], m.size, ns, m.id,
         )
         if not changed:
@@ -661,7 +672,7 @@ def _message_row(m: Message) -> tuple[Any, ...]:
         m.ns, m.id, m.channel_id, m.seq, _ts(m.time), m.sender, m.sender_role.value,
         m.kind.value, m.text, m.reply_to, m.thread_id, json.dumps(sorted(m.to)),
         m.max_agents_answers, _ts(m.expires_at), json.dumps([asdict(r) for r in m.refs]),
-        m.closed_reason.value if m.closed_reason else None, _ts(m.amended_at),
+        m.closed_reason.value if m.closed_reason else None, _ts(m.amended_at), m.sender_machine,
     )
 
 
@@ -685,6 +696,60 @@ def _message(row: sqlite3.Row) -> Message:
         refs=tuple(Ref(**r) for r in json.loads(row["refs"])),
         closed_reason=Closed(closed) if closed else None,
         amended_at=_dt(row["amended_at"]),
+        sender_machine=row["sender_machine"],
+    )
+
+
+BLOB_META = "ns, id, name, size, sha256, uploader, created_at"
+
+
+class SqliteBlobs:
+    def __init__(self, db: Db) -> None:
+        self._db = db
+
+    async def add(self, ns: str, blob: Blob) -> Blob:
+        return await self._db.call(self._add, ns, blob)
+
+    def _add(self, ns: str, b: Blob) -> Blob:
+        with self._db.write():
+            self._db.run(
+                "INSERT OR IGNORE INTO blobs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                ns, b.id, b.name, b.size, b.sha256, b.uploader, _ts(b.created_at), b.data,
+            )
+            row = self._db.one(
+                f"SELECT {BLOB_META} FROM blobs WHERE ns = ? AND sha256 = ?", ns, b.sha256
+            )
+            return _blob(row)
+
+    async def get(self, ns: str, blob_id: str) -> Blob | None:
+        row = await self._db.call(
+            self._db.one, f"SELECT {BLOB_META} FROM blobs WHERE ns = ? AND id = ?", ns, blob_id
+        )
+        return None if row is None else _blob(row)
+
+    async def read(self, ns: str, blob_id: str) -> Blob | None:
+        row = await self._db.call(
+            self._db.one, "SELECT * FROM blobs WHERE ns = ? AND id = ?", ns, blob_id
+        )
+        return None if row is None else _blob(row)
+
+    async def usage(self, ns: str) -> int:
+        row = await self._db.call(
+            self._db.one, "SELECT COALESCE(SUM(size), 0) AS bytes FROM blobs WHERE ns = ?", ns
+        )
+        return row["bytes"]
+
+
+def _blob(row: sqlite3.Row) -> Blob:
+    return Blob(
+        ns=row["ns"],
+        id=row["id"],
+        name=row["name"],
+        size=row["size"],
+        sha256=row["sha256"],
+        uploader=row["uploader"],
+        created_at=_dt(row["created_at"]),
+        data=bytes(row["data"]) if "data" in row.keys() else b"",
     )
 
 
@@ -844,6 +909,7 @@ class SqliteStore:
         self.channels = SqliteChannels(self._db)
         self.memberships = SqliteMemberships(self._db)
         self.messages = SqliteMessages(self._db)
+        self.blobs = SqliteBlobs(self._db)
         self.pointers = SqlitePointers(self._db)
         self.idempotency = SqliteIdempotency(self._db)
         self.audit = SqliteAudit(self._db)
