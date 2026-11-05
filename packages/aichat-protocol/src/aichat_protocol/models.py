@@ -1,7 +1,7 @@
 """Pydantic request/response models: the wire contract of the HTTP API."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -41,6 +41,26 @@ class Ref(BaseModel):
     name: str | None = None
     size: int | None = None
     sha256: str | None = None
+
+
+# --- message metadata -------------------------------------------------------
+
+COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"  # CSS hex only: safe to use as a style
+MAX_TAGS = 16
+Tag = Annotated[str, Field(min_length=1, max_length=32)]
+
+
+class MessageMetadata(BaseModel):
+    """How a message looks and is grouped. The hub stores it and sends it back as is."""
+
+    bg_color: str | None = Field(default=None, pattern=COLOR_PATTERN)
+    fg_color: str | None = Field(default=None, pattern=COLOR_PATTERN)
+    tags: list[Tag] = Field(default_factory=list, max_length=MAX_TAGS)
+    pinned: bool = False
+
+
+class PinRequest(BaseModel):
+    pinned: bool
 
 
 class BlobOut(BaseModel):
@@ -192,6 +212,7 @@ class PostMessageRequest(BaseModel):
     refs: list[Ref] = Field(default_factory=list)
     expires_in: float | None = Field(default=None, gt=0)
     wake: bool = False  # room information: also wake parked members (DMs and questions always do)
+    metadata: MessageMetadata | None = None
 
 
 class AnswerRequest(BaseModel):
@@ -219,6 +240,7 @@ class MessageOut(BaseModel):
     refs: list[Ref]
     amended_at: datetime | None
     sender_machine: str | None = None
+    metadata: MessageMetadata | None = None
 
 
 class Recipient(BaseModel):

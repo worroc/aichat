@@ -4,7 +4,7 @@ from dataclasses import asdict
 
 from aichat_protocol import models as wire
 
-from ..domain import Blob, Channel, Identity, Message, MsgKind, Ref
+from ..domain import Blob, Channel, Identity, Message, MessageMetadata, MsgKind, Ref
 from ..store.base import Store
 from .access import label
 
@@ -19,6 +19,21 @@ def ref_in(ref: wire.Ref) -> Ref:
         type=ref.type, repo=ref.repo, branch=ref.branch, commit=ref.commit, path=ref.path, url=ref.url,
         id=ref.id, name=ref.name,
     )
+
+
+def metadata_in(meta: wire.MessageMetadata | None) -> MessageMetadata | None:
+    """The client's metadata; None when it sets nothing. Repeated tags are kept once."""
+    if meta is None:
+        return None
+    out = MessageMetadata(
+        bg_color=meta.bg_color, fg_color=meta.fg_color,
+        tags=tuple(dict.fromkeys(meta.tags)), pinned=meta.pinned,
+    )
+    return None if out == MessageMetadata() else out
+
+
+def metadata_out(meta: MessageMetadata | None) -> wire.MessageMetadata | None:
+    return None if meta is None else wire.MessageMetadata.model_validate(asdict(meta))
 
 
 def blob_out(blob: Blob) -> wire.BlobOut:
@@ -83,6 +98,7 @@ class Presenter:
             refs=[ref_out(r) for r in msg.refs],
             amended_at=msg.amended_at,
             sender_machine=msg.sender_machine,
+            metadata=metadata_out(msg.metadata),
         )
 
     async def messages(self, items: list[Message], viewer: str | None) -> list[wire.MessageOut]:

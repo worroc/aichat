@@ -18,6 +18,7 @@ from aichat_server.domain import (
     Identity,
     Kind,
     MessageFilter,
+    MessageMetadata,
     MsgKind,
     Namespace,
     NewMessage,
@@ -227,10 +228,36 @@ async def test_message_machine_and_refs_round_trip(make_store):
     assert (await store.messages.get("ns1", sent.id)).sender_machine == "pc-b"
 
 
+async def test_message_metadata_round_trip(make_store):
+    store = make_store()
+    await _room(store)
+    meta = MessageMetadata(bg_color="#ffeeaa", fg_color="#000", tags=("plan", "v2"), pinned=True)
+    sent = await store.messages.add("ns1", _msg(metadata=meta))
+    got = await store.messages.get("ns1", sent.id)
+    assert got == sent and got.metadata == meta
+    await store.messages.replace("ns1", replace(got, metadata=None))
+    assert (await store.messages.get("ns1", sent.id)).metadata is None
+
+
+async def test_set_metadata_changes_only_the_metadata(make_store):
+    store = make_store()
+    await _room(store)
+    sent = await store.messages.add("ns1", _msg())
+    await store.messages.close("ns1", sent.id, Closed.CLOSED)
+    meta = MessageMetadata(pinned=True)
+    got = await store.messages.set_metadata("ns1", sent.id, meta)
+    assert got.metadata == meta and got.closed_reason is Closed.CLOSED and got.text == sent.text
+    assert (await store.messages.get("ns1", sent.id)) == got
+    cleared = await store.messages.set_metadata("ns1", sent.id, None)
+    assert cleared.metadata is None
+    with pytest.raises(DomainError):
+        await store.messages.set_metadata("ns2", sent.id, meta)
+
+
 async def test_sqlite_adds_machine_columns_to_an_old_file(tmp_path):
     path = tmp_path / "old.db"
     old = SCHEMA.replace("    machine TEXT, PRIMARY KEY", "    PRIMARY KEY").replace(
-        "    sender_machine TEXT, UNIQUE", "    UNIQUE"
+        "    sender_machine TEXT, metadata TEXT, UNIQUE", "    UNIQUE"
     )
     assert old != SCHEMA
     conn = sqlite3.connect(path)
@@ -245,6 +272,8 @@ async def test_sqlite_adds_machine_columns_to_an_old_file(tmp_path):
     await store.identities.add("ns1", ident)
     assert (await store.identities.get("ns1", "lead")).machine == "pc-a"
     await _room(store)
-    sent = await store.messages.add("ns1", _msg(sender_machine="pc-a"))
-    assert (await store.messages.get("ns1", sent.id)).sender_machine == "pc-a"
+    meta = MessageMetadata(tags=("x",))
+    sent = await store.messages.add("ns1", _msg(sender_machine="pc-a", metadata=meta))
+    got = await store.messages.get("ns1", sent.id)
+    assert got.sender_machine == "pc-a" and got.metadata == meta
     await store.close()

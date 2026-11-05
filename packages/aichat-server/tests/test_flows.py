@@ -272,3 +272,41 @@ async def test_delete_namespace(hub, client):
     assert [n["id"] for n in listed] == [other_ns]
     again = await client.delete(f"/ops/namespaces/{ns}", headers=hub.op)
     assert code_of(again) == "not_found"
+
+
+async def test_message_metadata_is_kept_and_checked(hub):
+    main, (a,) = await _setup_room(hub, "ann")
+    meta = {"bg_color": "#fe0", "fg_color": "#112233", "tags": ["plan", "plan", "v2"], "pinned": True}
+    sent = await main.ok("post", "/rooms/dev/messages", {"text": "hi", "metadata": meta})
+    want = {**meta, "tags": ["plan", "v2"]}
+    assert sent["message"]["metadata"] == want
+    got = (await a.ok("get", "/inbox"))["messages"][0]
+    assert got["metadata"] == want
+    plain = await main.ok("post", "/rooms/dev/messages", {"text": "x", "metadata": {}})
+    assert plain["message"]["metadata"] is None
+    bad = await main.post("/rooms/dev/messages", {"text": "x", "metadata": {"bg_color": "red;x"}})
+    assert bad.status_code == 422
+
+
+async def test_any_reader_pins_and_unpins_a_message(hub):
+    main, (a, b) = await _setup_room(hub, "ann", "ben")
+    meta = {"bg_color": "#fe0", "tags": ["plan"]}
+    sent = await main.ok("post", "/rooms/dev/messages", {"text": "hi", "metadata": meta})
+    mid = sent["message"]["id"]
+    pinned = await a.ok("put", f"/messages/{mid}/pin", {"pinned": True})
+    assert pinned["metadata"] == {**meta, "fg_color": None, "pinned": True}
+    seen = await b.ok("get", f"/messages/{mid}/thread")
+    assert seen["messages"][0]["metadata"]["pinned"] is True
+    unpinned = await b.ok("put", f"/messages/{mid}/pin", {"pinned": False})
+    assert unpinned["metadata"]["pinned"] is False and unpinned["metadata"]["tags"] == ["plan"]
+    plain = await main.ok("post", "/rooms/dev/messages", {"text": "x"})
+    pid = plain["message"]["id"]
+    await a.ok("put", f"/messages/{pid}/pin", {"pinned": True})
+    assert (await a.ok("put", f"/messages/{pid}/pin", {"pinned": False}))["metadata"] is None
+
+
+async def test_pin_of_a_hidden_message_is_not_found(hub):
+    main, (_a, b) = await _setup_room(hub, "ann", "ben")
+    sent = await main.ok("post", "/dm/ann", {"text": "private"})
+    resp = await b.put(f"/messages/{sent['message']['id']}/pin", {"pinned": True})
+    assert code_of(resp) == "not_found"

@@ -43,6 +43,23 @@ Every error has this shape:
     `size` and `sha256`, which the hub fills. `BlobOut` is the upload result.
 - All these fields are optional, so old clients keep working.
 
+## Message metadata
+
+`PostMessageRequest.metadata` and `MessageOut.metadata` hold a
+`MessageMetadata`. The hub stores it with the message and sends it back as is.
+
+- `bg_color`, `fg_color`: CSS hex colors (`#rgb` or `#rrggbb`), or `None`.
+  Only hex is accepted, so a client can use them as a style safely.
+- `tags`: at most 16 tags, each 1–32 characters. Repeated tags are kept once.
+- `pinned`: show the message at the top of its chat.
+
+Metadata that sets nothing is stored as `None`. Answers have no metadata.
+
+`PUT /messages/{id}/pin` with `PinRequest {"pinned": bool}` pins or unpins a
+message after it was posted. Anyone who sees the message may do it; the pin
+is shared. It returns the `MessageOut` and emits a `message_pinned` event.
+The field is optional, so old clients keep working.
+
 ## Names
 
 - Names match `^[a-z][a-z0-9-]{1,31}$`.

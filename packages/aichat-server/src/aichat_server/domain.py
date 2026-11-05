@@ -164,6 +164,14 @@ class Blob:
 
 
 @dataclass(frozen=True, slots=True)
+class MessageMetadata:
+    bg_color: str | None = None
+    fg_color: str | None = None
+    tags: tuple[str, ...] = ()
+    pinned: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class NewMessage:
     channel_id: str
     sender: str
@@ -177,6 +185,7 @@ class NewMessage:
     expires_at: datetime | None = None
     refs: tuple[Ref, ...] = ()
     sender_machine: str | None = None
+    metadata: MessageMetadata | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +208,7 @@ class Message:
     closed_reason: Closed | None = None
     amended_at: datetime | None = None
     sender_machine: str | None = None
+    metadata: MessageMetadata | None = None
 
     @property
     def size(self) -> int:

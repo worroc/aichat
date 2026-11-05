@@ -35,6 +35,7 @@ from ..domain import (
     Membership,
     Message,
     MessageFilter,
+    MessageMetadata,
     Namespace,
     NewMessage,
     not_found,
@@ -247,6 +248,7 @@ class MemoryMessages:
             expires_at=new.expires_at,
             refs=new.refs,
             sender_machine=new.sender_machine,
+            metadata=new.metadata,
         )
         self._items[(ns, message_id)] = message
         ids.append(message_id)
@@ -270,6 +272,14 @@ class MemoryMessages:
         if message.closed_reason is None:
             message = replace(message, closed_reason=reason)
             self._items[(ns, message_id)] = message
+        return message
+
+    async def set_metadata(self, ns: str, message_id: str, metadata: MessageMetadata | None) -> Message:
+        message = self._items.get((ns, message_id))
+        if message is None:
+            raise not_found("message")
+        message = replace(message, metadata=metadata)
+        self._items[(ns, message_id)] = message
         return message
 
     async def get(self, ns: str, message_id: str) -> Message | None:

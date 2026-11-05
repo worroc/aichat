@@ -14,6 +14,7 @@ from ..domain import (
     DomainError,
     Identity,
     Message,
+    MessageMetadata,
     MsgKind,
     NewMessage,
     Ref,
@@ -26,7 +27,7 @@ from ..security import Principal, find_secrets, hash_secret
 from .access import Access, label
 from .blobs import BlobService
 from .context import Ctx, now
-from .present import Presenter, ref_in
+from .present import Presenter, metadata_in, ref_in
 from .reading import ReadingService
 from .waits import wait_until
 
@@ -129,6 +130,7 @@ class MessagingService:
             expires_at=expires if kind is MsgKind.QUESTION else None,
             refs=refs,
             sender_machine=sender.machine,
+            metadata=metadata_in(req.metadata),
         )
 
     # --- refs ------------------------------------------------------------------------
@@ -345,6 +347,18 @@ class MessagingService:
         await self.ctx.notifier.publish(reader_topic(p.ns, question.sender))
         await self.ctx.emit(p.ns, "answer_amended", {"id": mine.id, "question": question.id})
         await self.ctx.audit(p.ns, p.name, "answer.amend", label(channel, None), mine.id)
+        return await self.presenter.message(updated, channel, p.name)
+
+    async def pin(self, p: Principal, message_id: str, pinned: bool) -> wire.MessageOut:
+        """Anyone who sees a message may pin or unpin it; the pin is shared."""
+        message, channel, _ = await self.access.message(p, message_id)
+        meta = replace(message.metadata or MessageMetadata(), pinned=pinned)
+        updated = await self.store.messages.set_metadata(
+            p.ns, message.id, None if meta == MessageMetadata() else meta
+        )
+        await self.ctx.emit(p.ns, "message_pinned", {"id": message.id, "pinned": pinned})
+        action = "message.pin" if pinned else "message.unpin"
+        await self.ctx.audit(p.ns, p.name, action, label(channel, None), message.id)
         return await self.presenter.message(updated, channel, p.name)
 
     async def close(self, p: Principal, qid: str) -> wire.MessageOut:

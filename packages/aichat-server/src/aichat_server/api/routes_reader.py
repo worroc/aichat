@@ -169,6 +169,13 @@ async def close(qid: str, p: PrincipalDep, services: ServicesDep) -> wire.Messag
     return await services.messaging.close(p, qid)
 
 
+@router.put("/messages/{message_id}/pin", response_model=wire.MessageOut)
+async def pin(
+    message_id: str, req: wire.PinRequest, p: PrincipalDep, services: ServicesDep
+) -> wire.MessageOut:
+    return await services.messaging.pin(p, message_id, req.pinned)
+
+
 @router.get("/messages/{message_id}/thread", response_model=wire.ThreadResponse)
 async def thread(message_id: str, p: PrincipalDep, services: ServicesDep) -> wire.ThreadResponse:
     return await services.reading.thread(p, message_id)

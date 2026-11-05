@@ -158,7 +158,8 @@ SQLite files from before `depends_on` get the column on start (`ADDED_COLUMNS`).
   agents of other machines.
 
 SQLite files from before machines get the `machine` and `sender_machine`
-columns on start; the `blobs` table is created.
+columns on start; the `blobs` table is created. Files from before message
+metadata get the `metadata` column (JSON text) on start.
 
 ### Store rules (checked by `tests/contract`)
 - Every method takes `ns` first. The only exceptions are listed in `NS_EXEMPT`.

@@ -41,6 +41,7 @@ from ..domain import (
     Membership,
     Message,
     MessageFilter,
+    MessageMetadata,
     MsgKind,
     Namespace,
     NewMessage,
@@ -85,7 +86,7 @@ CREATE TABLE IF NOT EXISTS messages (
     kind TEXT NOT NULL, text TEXT NOT NULL, reply_to TEXT, thread_id TEXT NOT NULL,
     recipients TEXT NOT NULL, max_agents_answers INTEGER, expires_at TEXT, refs TEXT NOT NULL,
     closed_reason TEXT, amended_at TEXT, size INTEGER NOT NULL, answer_to TEXT,
-    sender_machine TEXT, UNIQUE (ns, id), UNIQUE (ns, channel_id, seq)
+    sender_machine TEXT, metadata TEXT, UNIQUE (ns, id), UNIQUE (ns, channel_id, seq)
 );
 CREATE INDEX IF NOT EXISTS messages_thread ON messages (ns, thread_id);
 CREATE INDEX IF NOT EXISTS messages_answers ON messages (ns, answer_to);
@@ -136,11 +137,12 @@ ADDED_COLUMNS = (
     ("identities", "done_requested", "INTEGER NOT NULL DEFAULT 0"),
     ("identities", "machine", "TEXT"),
     ("messages", "sender_machine", "TEXT"),
+    ("messages", "metadata", "TEXT"),
 )
 
 MESSAGE_COLS = (
     "ns, id, channel_id, seq, time, sender, sender_role, kind, text, reply_to, thread_id, "
-    "recipients, max_agents_answers, expires_at, refs, closed_reason, amended_at, sender_machine"
+    "recipients, max_agents_answers, expires_at, refs, closed_reason, amended_at, sender_machine, metadata"
 )
 
 
@@ -543,10 +545,11 @@ class SqliteMessages:
             expires_at=new.expires_at,
             refs=new.refs,
             sender_machine=new.sender_machine,
+            metadata=new.metadata,
         )
         self._db.run(
             f"INSERT INTO messages ({MESSAGE_COLS}, size, answer_to)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             *_message_row(message), message.size, answer_to,
         )
         return message
@@ -560,7 +563,7 @@ class SqliteMessages:
             "UPDATE messages SET channel_id = ?, seq = ?, time = ?, sender = ?, sender_role = ?,"
             " kind = ?, text = ?, reply_to = ?, thread_id = ?, recipients = ?,"
             " max_agents_answers = ?, expires_at = ?, refs = ?, closed_reason = ?,"
-            " amended_at = ?, sender_machine = ?, size = ? WHERE ns = ? AND id = ?",
+            " amended_at = ?, sender_machine = ?, metadata = ?, size = ? WHERE ns = ? AND id = ?",
             *row[2:], m.size, ns, m.id,
         )
         if not changed:
@@ -583,6 +586,19 @@ class SqliteMessages:
             "UPDATE messages SET closed_reason = ? WHERE ns = ? AND id = ?",
             reason.value, ns, message_id,
         )
+
+    async def set_metadata(self, ns: str, message_id: str, metadata: MessageMetadata | None) -> Message:
+        return await self._db.call(self._set_metadata, ns, message_id, metadata)
+
+    def _set_metadata(self, ns: str, message_id: str, metadata: MessageMetadata | None) -> Message:
+        with self._db.write():
+            changed = self._db.run(
+                "UPDATE messages SET metadata = ? WHERE ns = ? AND id = ?",
+                _metadata_json(metadata), ns, message_id,
+            )
+            if not changed:
+                raise not_found("message")
+            return self._get(ns, message_id)
 
     async def get(self, ns: str, message_id: str) -> Message | None:
         return await self._db.call(self._get, ns, message_id)
@@ -673,7 +689,19 @@ def _message_row(m: Message) -> tuple[Any, ...]:
         m.kind.value, m.text, m.reply_to, m.thread_id, json.dumps(sorted(m.to)),
         m.max_agents_answers, _ts(m.expires_at), json.dumps([asdict(r) for r in m.refs]),
         m.closed_reason.value if m.closed_reason else None, _ts(m.amended_at), m.sender_machine,
+        _metadata_json(m.metadata),
     )
+
+
+def _metadata_json(meta: MessageMetadata | None) -> str | None:
+    return None if meta is None else json.dumps(asdict(meta))
+
+
+def _metadata(raw: str | None) -> MessageMetadata | None:
+    if raw is None:
+        return None
+    data = json.loads(raw)
+    return MessageMetadata(**{**data, "tags": tuple(data.get("tags", ()))})
 
 
 def _message(row: sqlite3.Row) -> Message:
@@ -697,6 +725,7 @@ def _message(row: sqlite3.Row) -> Message:
         closed_reason=Closed(closed) if closed else None,
         amended_at=_dt(row["amended_at"]),
         sender_machine=row["sender_machine"],
+        metadata=_metadata(row["metadata"]),
     )
 
 
