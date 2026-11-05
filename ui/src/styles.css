@@ -294,6 +294,22 @@ button.small,
   background: var(--panel-2);
   font-size: 0.85em;
 }
+/* A message tag: an outline chip in the message's own text color, so it reads on any paint. */
+.msg-tag {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 0.78em;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+/* A painted message: the head text and badges take the message's text color. */
+.msg.painted .muted,
+.msg.painted .badge {
+  color: inherit;
+  opacity: 0.8;
+}
 .tree-mark {
   font-family: ui-monospace, monospace;
 }
@@ -404,6 +420,68 @@ button.small,
 .channel-head {
   margin-bottom: 0.6rem;
 }
+/* Channel page: fills the screen; only the messages scroll, the composer stays below them. */
+.channel.chat {
+  height: 100%;
+  min-height: 0;
+}
+.chat .channel-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.chat .composer {
+  border-top: 1px solid var(--border);
+}
+.pinned {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin-bottom: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.pinned h4 {
+  margin: 0.2rem 0;
+}
+button.pin {
+  background: none;
+  border: none;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+button.pin:hover {
+  opacity: 0.7;
+}
+.pin.on {
+  opacity: 1;
+  filter: none;
+}
+.color-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.color-pick input[type="color"] {
+  width: 1.8rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: none;
+}
+.tags-input {
+  width: 9rem;
+}
+.chat .thread {
+  max-height: 100%;
+}
 .filters {
   margin-top: 0.5rem;
 }
@@ -482,6 +560,26 @@ button.small,
 
 /* --- human panel ------------------------------------------------------- */
 
+.human-name {
+  display: flex;
+  min-width: 0;
+}
+.human-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  user-select: none;
+}
+.human-name input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 0 6px 6px 0;
+}
 .human-panel {
   margin-top: 1rem;
   border-top: 1px solid var(--border);
@@ -578,9 +676,32 @@ body.resizing {
   .channel.with-thread {
     grid-template-columns: 1fr;
   }
+  .channel.chat.with-thread {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 /* --- agent page -------------------------------------------------------- */
+
+.send-message {
+  margin: 1rem 0;
+}
+.messages-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.messages-bar h3 {
+  margin: 0;
+}
+.messages-bar .filters {
+  margin-top: 0;
+}
 
 .table tr.clickable {
   cursor: pointer;

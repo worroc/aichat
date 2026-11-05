@@ -15,6 +15,7 @@ const REFRESH_TYPES = new Set([
   "member_removed",
   "question_closed",
   "answer_amended",
+  "message_pinned",
   "alert",
   "namespace_created",
   "namespace_deleted",

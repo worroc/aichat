@@ -23,6 +23,14 @@ export interface Ref {
   sha256?: string | null;
 }
 
+/** How a message looks and is grouped. Colors are CSS hex (#rgb or #rrggbb). */
+export interface MessageMetadata {
+  bg_color?: string | null;
+  fg_color?: string | null;
+  tags?: string[];
+  pinned?: boolean;
+}
+
 export interface NamespaceOut {
   id: string;
   title: string;
@@ -93,6 +101,7 @@ export interface MessageOut {
   refs: Ref[];
   amended_at: string | null;
   sender_machine?: string | null;
+  metadata?: MessageMetadata | null;
 }
 
 export interface MessagesPage {
@@ -147,6 +156,7 @@ export interface PostMessageRequest {
   kind: PostKind;
   max_agents_answers?: number;
   to?: string[];
+  metadata?: MessageMetadata;
 }
 
 // --- errors -------------------------------------------------------------------
@@ -288,6 +298,8 @@ export function humanApi(token: string) {
     postRoom: (room: string, req: PostMessageRequest) =>
       request<PostResponse>("POST", `/rooms/${seg(room)}/messages`, auth, req),
     postDm: (peer: string, req: PostMessageRequest) => request<PostResponse>("POST", `/dm/${seg(peer)}`, auth, req),
+    pin: (messageId: string, pinned: boolean) =>
+      request<MessageOut>("PUT", `/messages/${seg(messageId)}/pin`, auth, { pinned }),
     answer: (questionId: string, text: string) =>
       request<PostResponse>("POST", `/questions/${seg(questionId)}/answers`, auth, { text }),
   };

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { HumanResponse, MessageOut, Ref } from "../api/client";
+import type { HumanResponse, MessageMetadata, MessageOut, Ref } from "../api/client";
 import { humanApi, opsApi } from "../api/client";
 import { useRoute } from "../lib/router";
 import { fullTime, clockTime } from "../lib/time";
@@ -67,6 +67,47 @@ function RefView({ r, messageId }: { r: Ref; messageId: string }) {
   return <span>git {parts.filter(Boolean).join(" ")}</span>;
 }
 
+const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** Colors from the metadata; only CSS hex is used (the hub checks it too). */
+function metaStyle(meta: MessageMetadata | null | undefined): React.CSSProperties | undefined {
+  const style: React.CSSProperties = {};
+  if (meta?.bg_color && HEX.test(meta.bg_color)) style.background = meta.bg_color;
+  if (meta?.fg_color && HEX.test(meta.fg_color)) style.color = meta.fg_color;
+  return Object.keys(style).length ? style : undefined;
+}
+
+/** The pin mark; a button that pins or unpins when the UI acts as a human. */
+function PinButton({ m, human }: { m: MessageOut; human: HumanResponse | null }) {
+  const [error, setError] = useState<unknown>(null);
+  const pinned = !!m.metadata?.pinned;
+  if (!human) return pinned ? <span className="pin on" title="pinned">📌</span> : null;
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    humanApi(human.token).pin(m.id, !pinned).catch(setError);
+  };
+  return (
+    <>
+      <button type="button" className={`pin ${pinned ? "on" : ""}`} title={pinned ? "unpin" : "pin"} onClick={toggle}>
+        📌
+      </button>
+      <ErrorBox error={error} onClose={() => setError(null)} />
+    </>
+  );
+}
+
+function MetaMarks({ meta }: { meta: MessageMetadata | null | undefined }) {
+  return (
+    <>
+      {meta?.tags?.map((t) => (
+        <span key={t} className="msg-tag">
+          #{t}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export function QuestionStatus({ m }: { m: MessageOut }) {
   if (m.kind !== "question") return null;
   const count = `${m.answers_count ?? 0}/${m.max_agents_answers ?? 1} answers`;
@@ -127,8 +168,9 @@ interface Props {
 export function MessageItem({ m, human, onOpenThread, showChannel, destination, marker }: Props) {
   const [answering, setAnswering] = useState(false);
   const canAnswer = human && m.kind === "question" && !m.closed && m.sender !== human.name;
+  const painted = metaStyle(m.metadata);
   return (
-    <li className={`msg msg-${m.kind}`} onClick={() => onOpenThread?.(m)} title={onOpenThread ? "Open thread" : undefined}>
+    <li className={`msg msg-${m.kind}${painted ? " painted" : ""}`} style={painted} onClick={() => onOpenThread?.(m)} title={onOpenThread ? "Open thread" : undefined}>
       <div className="msg-head">
         {marker && (
           <span className={`marker marker-${marker}`} title={marker === "reply" ? "response" : "new message"}>
@@ -148,6 +190,9 @@ export function MessageItem({ m, human, onOpenThread, showChannel, destination, 
           {clockTime(m.time)} #{m.seq}
         </span>
         {m.amended_at && <span className="muted">(amended)</span>}
+        <MetaMarks meta={m.metadata} />
+        <span className="grow" />
+        <PinButton m={m} human={human} />
       </div>
       {/* Rendered as a text node: never as HTML. */}
       <div className="msg-text">{m.text}</div>

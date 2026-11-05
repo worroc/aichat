@@ -59,6 +59,11 @@ loads `index.html`; a path URL like `/rooms/x` would go to the API instead.
   - room messages: `POST /rooms/{room}/messages`
   - DMs: `POST /dm/{agent}`
   - answers: `POST /questions/{id}/answers`
+- **Message metadata:** in the composer, "paint" turns on a background and a
+  text color (the text box shows them while you type; off means no colors),
+  plus tags and "pin". A message shows its colors and tags. The 📌 icon on
+  any message pins or unpins it (`PUT /messages/{id}/pin`). A chat page keeps
+  its pinned messages (among the loaded ones) in a strip above all messages.
 - **Errors** from the server come as `{"error": {"code", "message"}}`. The UI
   shows the code and the message next to the action that failed.
 
