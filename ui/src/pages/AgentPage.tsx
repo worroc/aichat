@@ -1,4 +1,5 @@
 // One agent: its details, the channels it talks in, and its messages.
+import { matchesSearch } from "../lib/search";
 import { useState } from "react";
 import {
   channelLabel,
@@ -353,7 +354,7 @@ function MessageFilters(props: {
         ))}
       </span>
       <input
-        placeholder="filter by text"
+        placeholder="filter by text or #tag"
         value={props.text}
         onChange={(e) => props.setText(e.target.value)}
       />
@@ -424,7 +425,7 @@ export function AgentPage({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [newestFirst, setNewestFirst] = useState(true);
-  const [direction, setDirection] = useState<Direction>("from");
+  const [direction, setDirection] = useState<Direction>("all");
   const [conversation, setConversation] = useState(""); // a channel label; "" = all
 
   const mine = agentChannels(channels, name);
@@ -437,13 +438,12 @@ export function AgentPage({
 
   const all = loaded.data ?? [];
   const own = new Set(all.filter((m) => m.sender === name).map((m) => m.id));
-  const needle = text.trim().toLowerCase();
   const involved = all.filter((m) => involves(m, name, own));
   const filtered = involved.filter(
     (m) =>
       (!conversation || m.channel === conversation) &&
       matchesDirection(m, name, direction, own) &&
-      m.text.toLowerCase().includes(needle),
+      matchesSearch(m, text),
   );
   const messages = byTime(filtered, newestFirst);
   const agent = agents.find((a) => a.name === name);
@@ -458,11 +458,7 @@ export function AgentPage({
           >
             &larr; agents
           </a>
-          <div className="row">
-            <h2>{name}</h2>
-            <span className="grow" />
-            <SendMessageButton ns={ns} peer={agent} human={human} />
-          </div>
+          <h2>{name}</h2>
         </header>
         {agent ? (
           <Details ns={ns} agent={agent} agents={agents} />
@@ -470,21 +466,26 @@ export function AgentPage({
           <p className="muted">agent not found</p>
         )}
         <Conversations ns={ns} name={name} channels={mine} />
-        <h3>Messages</h3>
-        <MessageFilters
-          name={name}
-          conversations={mine}
-          conversation={conversation}
-          setConversation={setConversation}
-          direction={direction}
-          setDirection={setDirection}
-          text={text}
-          setText={setText}
-          newestFirst={newestFirst}
-          setNewestFirst={setNewestFirst}
-          shown={filtered.length}
-          total={involved.length}
-        />
+        <div className="send-message">
+          <SendMessageButton ns={ns} peer={agent} human={human} />
+        </div>
+        <div className="messages-bar">
+          <h3>Messages</h3>
+          <MessageFilters
+            name={name}
+            conversations={mine}
+            conversation={conversation}
+            setConversation={setConversation}
+            direction={direction}
+            setDirection={setDirection}
+            text={text}
+            setText={setText}
+            newestFirst={newestFirst}
+            setNewestFirst={setNewestFirst}
+            shown={filtered.length}
+            total={involved.length}
+          />
+        </div>
         <ErrorBox error={loaded.error} />
         <MessageTree
           nodes={buildTree(messages)}

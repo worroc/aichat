@@ -6,9 +6,8 @@ const NAME_RE = /^[a-z][a-z0-9-]{1,31}$/; // aichat_protocol.names.NAME_RE
 
 /** Why `name` cannot be a human name, or null when it is fine. */
 function nameProblem(name: string): string | null {
-  if (!name.startsWith(HUMAN_PREFIX_TEXT) || name.length === HUMAN_PREFIX_TEXT.length)
-    return `name must start with "${HUMAN_PREFIX_TEXT}"`;
-  if (!NAME_RE.test(name)) return "use a-z, 0-9 and -, at most 32 characters";
+  if (name === HUMAN_PREFIX_TEXT) return "enter your name";
+  if (!NAME_RE.test(name)) return `use a-z, 0-9 and -, at most ${32 - HUMAN_PREFIX_TEXT.length} characters`;
   return null;
 }
 
@@ -21,10 +20,11 @@ interface Props {
 /** Asks for the operator key (checked against GET /ops/namespaces) and the human name. */
 export function Login({ initialKey, initialName, onLogin }: Props) {
   const [key, setKey] = useState(initialKey ?? "");
-  const [name, setName] = useState(initialName ?? HUMAN_PREFIX_TEXT);
+  // The field holds only the part after the fixed "human-" prefix.
+  const [name, setName] = useState((initialName ?? HUMAN_PREFIX_TEXT).slice(HUMAN_PREFIX_TEXT.length));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const cleanName = name.trim().toLowerCase();
+  const cleanName = HUMAN_PREFIX_TEXT + name.trim().toLowerCase();
   const problem = nameProblem(cleanName);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,12 +53,16 @@ export function Login({ initialKey, initialName, onLogin }: Props) {
           autoComplete="current-password"
         />
         <p className="muted">Your name. You post as this human in every namespace. It is remembered.</p>
-        <input
-          autoFocus={!!initialKey}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="human-yourname"
-        />
+        <label className="human-name">
+          <span className="human-prefix">{HUMAN_PREFIX_TEXT}</span>
+          <input
+            autoFocus={!!initialKey}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="yourname"
+            autoComplete="off"
+          />
+        </label>
         {problem && <span className="muted small">{problem}</span>}
         <button type="submit" disabled={busy || !key.trim() || problem !== null}>
           {busy ? "Checking..." : "Sign in"}

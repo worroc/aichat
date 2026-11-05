@@ -4,6 +4,7 @@ import { Composer, type Target } from "../components/Composer";
 import { ErrorBox } from "../components/ErrorBox";
 import { MessageItem } from "../components/MessageItem";
 import { ThreadView } from "../components/ThreadView";
+import { matchesSearch } from "../lib/search";
 import { useAsync } from "../lib/useAsync";
 
 const PAGE = 100;
@@ -50,7 +51,7 @@ function Filters(props: {
 }) {
   return (
     <div className="row wrap filters">
-      <input placeholder="filter by text" value={props.text} onChange={(e) => props.setText(e.target.value)} />
+      <input placeholder="filter by text or #tag" value={props.text} onChange={(e) => props.setText(e.target.value)} />
       <label>
         sender{" "}
         <select value={props.sender} onChange={(e) => props.setSender(e.target.value)}>
@@ -91,7 +92,7 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
   const [sender, setSender] = useState("");
   const [kind, setKind] = useState("");
   const [text, setText] = useState("");
-  const [newestFirst, setNewestFirst] = useState(false); // a chat reads oldest first
+  const [newestFirst, setNewestFirst] = useState(true); // the latest message on top
   const [older, setOlder] = useState<{ messages: MessageOut[]; hasMore: boolean } | null>(null);
   const [olderError, setOlderError] = useState<unknown>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -109,9 +110,9 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
   }
 
   const loaded = merge(older?.messages ?? [], latest.data?.messages ?? []);
-  const needle = text.trim().toLowerCase();
-  const matching = loaded.filter((m) => m.text.toLowerCase().includes(needle));
+  const matching = loaded.filter((m) => matchesSearch(m, text));
   const messages = newestFirst ? [...matching].reverse() : matching;
+  const pinned = loaded.filter((m) => m.metadata?.pinned);
   const hasMore = older ? older.hasMore : (latest.data?.has_more ?? false);
 
   const loadOlder = async () => {
@@ -125,11 +126,14 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
     }
   };
 
-  // Oldest first: follow new messages at the bottom, but not when older pages were loaded.
-  const end = useRef<HTMLDivElement>(null);
+  // Keep the latest message in view: at the top when newest first, else at the bottom.
+  // Not after older pages were loaded, so reading back is not interrupted.
+  const scroller = useRef<HTMLDivElement>(null);
   const newest = latest.data?.messages.at(-1)?.id;
   useEffect(() => {
-    if (!older && !newestFirst) end.current?.scrollIntoView({ block: "end" });
+    const box = scroller.current;
+    if (!box || older) return;
+    box.scrollTop = newestFirst ? 0 : box.scrollHeight;
   }, [newest, older, newestFirst]);
 
   const senders = [...new Set([...agents.map((a) => a.name), ...(channel?.members ?? [])])].sort();
@@ -137,7 +141,7 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
   const title = channel ? (channel.kind === "room" ? "#" + channel.name : channel.name.replace("|", " ↔ ")) : channelId;
 
   return (
-    <div className={`channel ${threadId ? "with-thread" : ""}`}>
+    <div className={`channel chat ${threadId ? "with-thread" : ""}`}>
       <div className="channel-main">
         <header className="channel-head">
           <h2>{title}</h2>
@@ -161,28 +165,39 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
             total={loaded.length}
           />
         </header>
-        <ErrorBox error={latest.error} />
-        <ErrorBox error={olderError} onClose={() => setOlderError(null)} />
-        {hasMore && !newestFirst && (
-          <button className="link" onClick={loadOlder}>
-            load older messages
-          </button>
+        {pinned.length > 0 && (
+          <section className="pinned" title="pinned messages among the loaded ones">
+            <h4>📌 Pinned</h4>
+            <ul className="messages">
+              {pinned.map((m) => (
+                <MessageItem key={m.id} m={m} human={human} onOpenThread={(msg) => setThreadId(msg.thread_id)} />
+              ))}
+            </ul>
+          </section>
         )}
-        <ul className="messages">
-          {messages.map((m) => (
-            <MessageItem key={m.id} m={m} human={human} onOpenThread={(msg) => setThreadId(msg.thread_id)} />
-          ))}
-        </ul>
-        {!channel && !target && <p className="muted">channel not found</p>}
-        {channel && loaded.length === 0 && !latest.loading && <p className="muted">no messages</p>}
-        {loaded.length > 0 && messages.length === 0 && <p className="muted">no message matches the filter</p>}
+        <div className="chat-scroll" ref={scroller}>
+          <ErrorBox error={latest.error} />
+          <ErrorBox error={olderError} onClose={() => setOlderError(null)} />
+          {hasMore && !newestFirst && (
+            <button className="link" onClick={loadOlder}>
+              load older messages
+            </button>
+          )}
+          <ul className="messages">
+            {messages.map((m) => (
+              <MessageItem key={m.id} m={m} human={human} onOpenThread={(msg) => setThreadId(msg.thread_id)} />
+            ))}
+          </ul>
+          {!channel && !target && <p className="muted">channel not found</p>}
+          {channel && loaded.length === 0 && !latest.loading && <p className="muted">no messages</p>}
+          {loaded.length > 0 && messages.length === 0 && <p className="muted">no message matches the filter</p>}
+          {hasMore && newestFirst && (
+            <button className="link" onClick={loadOlder}>
+              load older messages
+            </button>
+          )}
+        </div>
         {target && human && <Composer human={human} target={target} onPosted={latest.reload} />}
-        {hasMore && newestFirst && (
-          <button className="link" onClick={loadOlder}>
-            load older messages
-          </button>
-        )}
-        <div ref={end} />
       </div>
       {threadId && (
         <ThreadView ns={ns} threadId={threadId} version={version} human={human} onClose={() => setThreadId(null)} />
