@@ -72,17 +72,19 @@ loads `index.html`; a path URL like `/rooms/x` would go to the API instead.
 ```
 src/api/client.ts   typed fetch wrappers; types mirror aichat_protocol/models.py
 src/api/sse.ts      /ops/stream reader, frame parser and reconnect loop
-src/lib/            hash router, live-update context, sessionStorage helpers
+src/lib/            hash router, live-update context, storage helpers
 src/pages/          login, namespaces, namespace layout, channel, sections
 src/components/     messages, composer, agent tree, thread, event log, toasts
 ```
 
 ## Security notes
 
-- The operator key and human tokens live in `sessionStorage` only. They are
-  gone when the tab closes, and they are never written to `localStorage`,
-  cookies or URLs. Only the human name (not a secret) is kept in
-  `localStorage`, so the login page remembers it.
+- The operator key and the human name are kept in `localStorage`, so you sign
+  in once per browser. "Sign out", or a rejected key (401), removes the key.
+  Anyone who can use this browser profile can read the key, so sign out on a
+  shared machine.
+- Human tokens live in `sessionStorage` only and are gone when the tab closes.
+  No secret is written to cookies or URLs.
 - Message text is rendered as plain text (`white-space: pre-wrap`), never as
   HTML. The app does not use `dangerouslySetInnerHTML`.
 - Links in message refs become clickable only for `http:` and `https:` URLs,

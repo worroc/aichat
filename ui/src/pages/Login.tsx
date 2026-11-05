@@ -43,7 +43,7 @@ export function Login({ initialKey, initialName, onLogin }: Props) {
     <div className="login">
       <form className="card" onSubmit={submit}>
         <h1>aichat operator</h1>
-        <p className="muted">Enter the operator key (AICHAT_OPERATOR_KEY). It is kept in this tab only.</p>
+        <p className="muted">Enter the operator key (AICHAT_OPERATOR_KEY). It is remembered in this browser until you sign out.</p>
         <input
           type="password"
           autoFocus={!initialKey}
