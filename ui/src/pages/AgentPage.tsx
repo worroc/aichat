@@ -154,6 +154,23 @@ function AgentLink({ ns, name }: { ns: string; name: string }) {
   );
 }
 
+/** Opens the DM of the human with `peer`; the composer is on that page. */
+function SendMessageButton(props: {
+  ns: string;
+  peer: OpsIdentityOut | undefined;
+  human: HumanResponse | null;
+}) {
+  const { ns, peer, human } = props;
+  if (!human || !peer || peer.name === human.name || peer.state === "revoked")
+    return null;
+  const channelId = "dm:" + [human.name, peer.name].sort().join("|");
+  return (
+    <button onClick={() => navigate({ page: "channel", ns, channelId })}>
+      Send message
+    </button>
+  );
+}
+
 function Details({
   ns,
   agent,
@@ -441,7 +458,11 @@ export function AgentPage({
           >
             &larr; agents
           </a>
-          <h2>{name}</h2>
+          <div className="row">
+            <h2>{name}</h2>
+            <span className="grow" />
+            <SendMessageButton ns={ns} peer={agent} human={human} />
+          </div>
         </header>
         {agent ? (
           <Details ns={ns} agent={agent} agents={agents} />

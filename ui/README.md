@@ -53,7 +53,8 @@ loads `index.html`; a path URL like `/rooms/x` would go to the API instead.
 - **Human calls** use a human token. The login page asks for your name once
   (it must start with `human-`). The UI always acts as that human. When you
   open a namespace, it calls `POST /ops/ns/{ns}/humans {name}` and keeps
-  `{name, token}` for that namespace. Then the UI posts with
+  `{name, token}` for that namespace. The "Send message" button on an agent
+  page opens your DM with that agent. Then the UI posts with
   `Authorization: Bearer <token>`:
   - room messages: `POST /rooms/{room}/messages`
   - DMs: `POST /dm/{agent}`
