@@ -36,6 +36,8 @@ export interface NamespaceOut {
   title: string;
   created_at: string;
   identities: number;
+  agents: number; // not revoked, humans not counted
+  active_agents: number;
   rooms: number;
   messages: number;
 }
@@ -190,13 +192,22 @@ async function toApiError(resp: Response): Promise<ApiError> {
 
 const OPERATOR_KEY = "aichat.operatorKey";
 
+// Kept in localStorage, so it survives new tabs and restarts; sign out (or a 401) forgets it.
 export function getOperatorKey(): string | null {
-  return sessionStorage.getItem(OPERATOR_KEY);
+  try {
+    return localStorage.getItem(OPERATOR_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function setOperatorKey(key: string | null): void {
-  if (key) sessionStorage.setItem(OPERATOR_KEY, key);
-  else sessionStorage.removeItem(OPERATOR_KEY);
+  try {
+    if (key) localStorage.setItem(OPERATOR_KEY, key);
+    else localStorage.removeItem(OPERATOR_KEY);
+  } catch {
+    // Storage blocked: the key lives only in memory for this page.
+  }
 }
 
 type UnauthorizedHandler = () => void;

@@ -104,7 +104,7 @@ export function NamespacesPage() {
             <th>title</th>
             <th>id</th>
             <th>created</th>
-            <th>identities</th>
+            <th title="active / total, humans and revoked agents not counted">agents</th>
             <th>rooms</th>
             <th>messages</th>
             <th></th>
@@ -120,7 +120,10 @@ export function NamespacesPage() {
                 </a>
               </td>
               <td title={ns.created_at}>{relativeTime(ns.created_at, now)}</td>
-              <td>{ns.identities}</td>
+              <td title={`${ns.active_agents} active of ${ns.agents} agents`}>
+                <span className={ns.active_agents > 0 ? "ok" : "muted"}>{ns.active_agents}</span>
+                <span className="muted">/{ns.agents}</span>
+              </td>
               <td>{ns.rooms}</td>
               <td>{ns.messages}</td>
               <td>

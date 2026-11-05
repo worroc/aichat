@@ -303,6 +303,8 @@ class NamespaceOut(BaseModel):
     title: str
     created_at: datetime
     identities: int
+    agents: int = 0  # agents that are not revoked; humans not counted
+    active_agents: int = 0  # of those, the ones in state "active"
     rooms: int
     messages: int
 

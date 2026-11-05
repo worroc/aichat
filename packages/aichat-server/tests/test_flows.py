@@ -261,6 +261,17 @@ async def test_namespace_title(hub, client):
     assert code_of(too_long) == "invalid"
 
 
+async def test_namespace_list_counts_agents(hub, client):
+    ns, main = await hub.namespace()
+    await hub.agent(main, "ann")
+    await main.ok("post", "/admin/agents", {"name": "bob"})  # never joins: pending
+    await hub.agent(main, "carl")
+    await main.ok("delete", "/admin/agents/carl")
+    await hub.human(ns, "human-ilya")
+    (listed,) = (await client.get("/ops/namespaces", headers=hub.op)).json()
+    assert (listed["agents"], listed["active_agents"]) == (3, 2)
+
+
 async def test_delete_namespace(hub, client):
     ns, main = await hub.namespace()
     other_ns, other = await hub.namespace()

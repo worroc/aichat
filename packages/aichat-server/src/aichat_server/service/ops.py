@@ -2,7 +2,7 @@
 
 from aichat_protocol import models as wire
 
-from ..domain import ChannelKind, Event, MessageFilter, MsgKind, not_found
+from ..domain import ChannelKind, Event, Identity, MessageFilter, MsgKind, Role, State, not_found
 from ..notify import OPS_TOPIC, events_topic, reader_topic
 from ..security import Principal
 from .access import label
@@ -31,12 +31,16 @@ class OpsService:
         out: list[wire.NamespaceOut] = []
         for ns in await self.store.namespaces.list():
             count, _ = await self.store.messages.usage(ns.id)
+            identities = await self.store.identities.list(ns.id)
+            agents = _agents(identities)
             out.append(
                 wire.NamespaceOut(
                     id=ns.id,
                     title=ns.title,
                     created_at=ns.created_at,
-                    identities=len(await self.store.identities.list(ns.id)),
+                    identities=len(identities),
+                    agents=len(agents),
+                    active_agents=sum(1 for i in agents if i.state is State.ACTIVE),
                     rooms=len(await self.store.channels.list(ns.id, ChannelKind.ROOM)),
                     messages=count,
                 )
@@ -164,3 +168,8 @@ class OpsService:
 
     def wake_topic(self, p: Principal) -> str:
         return events_topic(p.ns)
+
+
+def _agents(identities: list[Identity]) -> list[Identity]:
+    """The agents of a namespace: not humans, not revoked."""
+    return [i for i in identities if i.role is not Role.HUMAN and i.state is not State.REVOKED]

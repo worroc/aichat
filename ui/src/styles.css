@@ -123,6 +123,10 @@ button.small,
 .muted {
   color: var(--muted);
 }
+.ok {
+  color: var(--ok);
+  font-weight: 600;
+}
 .grow {
   flex: 1;
 }
