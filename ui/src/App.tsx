@@ -3,6 +3,7 @@ import { getOperatorKey, setOperatorKey, setUnauthorizedHandler } from "./api/cl
 import { EventLog } from "./components/EventLog";
 import { Toasts } from "./components/Toasts";
 import { LiveProvider } from "./lib/live";
+import { getHumanName, setHumanName } from "./lib/human";
 import { useRoute } from "./lib/router";
 import { Login } from "./pages/Login";
 import { NamespaceLayout } from "./pages/NamespaceLayout";
@@ -10,6 +11,7 @@ import { NamespacesPage } from "./pages/NamespacesPage";
 
 export function App() {
   const [key, setKey] = useState<string | null>(() => getOperatorKey());
+  const [name, setName] = useState<string | null>(() => getHumanName());
   const route = useRoute();
 
   const logout = useCallback(() => {
@@ -19,12 +21,17 @@ export function App() {
 
   useEffect(() => setUnauthorizedHandler(logout), [logout]);
 
-  const login = (value: string) => {
+  const login = (value: string, humanName: string) => {
     setOperatorKey(value);
     setKey(value);
+    setHumanName(humanName);
+    setName(humanName);
   };
 
-  if (!key) return <Login onLogin={login} />;
+  // Clears only the in-memory name: the login page shows the saved one to edit.
+  const changeName = useCallback(() => setName(null), []);
+
+  if (!key || !name) return <Login initialKey={key} initialName={getHumanName()} onLogin={login} />;
 
   return (
     <LiveProvider operatorKey={key} onUnauthorized={logout}>
@@ -47,7 +54,7 @@ export function App() {
             <EventLog />
           </div>
         ) : (
-          <NamespaceLayout route={route} />
+          <NamespaceLayout route={route} humanName={name} onChangeName={changeName} />
         )}
       </div>
     </LiveProvider>

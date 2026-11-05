@@ -487,10 +487,6 @@ button.small,
   border-top: 1px solid var(--border);
   padding-top: 0.3rem;
 }
-.human-panel select {
-  flex: 1;
-  min-width: 0;
-}
 
 /* --- event log --------------------------------------------------------- */
 

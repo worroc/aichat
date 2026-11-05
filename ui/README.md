@@ -50,9 +50,10 @@ loads `index.html`; a path URL like `/rooms/x` would go to the API instead.
   answer\_amended, alert) trigger a debounced refetch of the affected
   namespace. `alert` events that arrive while the page is open show as a
   banner. The last events are listed in the panel on the right.
-- **Human calls** use a human token. "Act as human" calls
-  `POST /ops/ns/{ns}/humans {name}` (the name must start with `human-`) and
-  keeps `{name, token}` per namespace. Then the UI posts with
+- **Human calls** use a human token. The login page asks for your name once
+  (it must start with `human-`). The UI always acts as that human. When you
+  open a namespace, it calls `POST /ops/ns/{ns}/humans {name}` and keeps
+  `{name, token}` for that namespace. Then the UI posts with
   `Authorization: Bearer <token>`:
   - room messages: `POST /rooms/{room}/messages`
   - DMs: `POST /dm/{agent}`
@@ -74,7 +75,8 @@ src/components/     messages, composer, agent tree, thread, event log, toasts
 
 - The operator key and human tokens live in `sessionStorage` only. They are
   gone when the tab closes, and they are never written to `localStorage`,
-  cookies or URLs.
+  cookies or URLs. Only the human name (not a secret) is kept in
+  `localStorage`, so the login page remembers it.
 - Message text is rendered as plain text (`white-space: pre-wrap`), never as
   HTML. The app does not use `dangerouslySetInnerHTML`.
 - Links in message refs become clickable only for `http:` and `https:` URLs,

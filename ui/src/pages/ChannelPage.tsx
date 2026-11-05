@@ -177,9 +177,6 @@ export function ChannelPage({ ns, channelId, channel, agents, human, version }: 
         {channel && loaded.length === 0 && !latest.loading && <p className="muted">no messages</p>}
         {loaded.length > 0 && messages.length === 0 && <p className="muted">no message matches the filter</p>}
         {target && human && <Composer human={human} target={target} onPosted={latest.reload} />}
-        {!human && channel?.kind === "room" && (
-          <p className="muted small">Use "Act as human" in the sidebar to post here.</p>
-        )}
         {hasMore && newestFirst && (
           <button className="link" onClick={loadOlder}>
             load older messages

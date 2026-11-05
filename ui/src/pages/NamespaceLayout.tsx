@@ -1,4 +1,4 @@
-import { opsApi, type ChannelOut, type HumanResponse, type OpsIdentityOut } from "../api/client";
+import { opsApi, type ChannelOut, type OpsIdentityOut } from "../api/client";
 import { EventLog } from "../components/EventLog";
 import { ErrorBox } from "../components/ErrorBox";
 import { HumanPanel } from "../components/HumanPanel";
@@ -66,9 +66,8 @@ function ChannelLinks(props: {
 function Sidebar(props: {
   route: NsRoute;
   channels: ChannelOut[];
-  human: HumanResponse | null;
-  setHuman: (h: HumanResponse | null) => void;
-  agents: Parameters<typeof HumanPanel>[0]["agents"];
+  agents: OpsIdentityOut[];
+  humanPanel: React.ReactNode;
 }) {
   const { route, channels } = props;
   const active = route.page === "channel" ? route.channelId : undefined;
@@ -98,15 +97,21 @@ function Sidebar(props: {
         humans={humans}
         activeHuman={activeHuman}
       />
-      <HumanPanel ns={route.ns} human={props.human} setHuman={props.setHuman} agents={props.agents} />
+      {props.humanPanel}
     </nav>
   );
 }
 
-export function NamespaceLayout({ route }: { route: NsRoute }) {
+interface LayoutProps {
+  route: NsRoute;
+  humanName: string;
+  onChangeName: () => void;
+}
+
+export function NamespaceLayout({ route, humanName, onChangeName }: LayoutProps) {
   const ns = route.ns;
   const version = useLive().versionOf(ns);
-  const { human, setHuman } = useHuman(ns);
+  const { human, error: humanError } = useHuman(ns, humanName);
   const agents = useAsync(() => opsApi.agents(ns), [ns], version);
   const channels = useAsync(() => opsApi.channels(ns), [ns], version);
   const channelList = channels.data ?? [];
@@ -155,7 +160,12 @@ export function NamespaceLayout({ route }: { route: NsRoute }) {
 
   return (
     <div className="ns-layout">
-      <Sidebar route={route} channels={channelList} human={human} setHuman={setHuman} agents={agents.data ?? []} />
+      <Sidebar
+        route={route}
+        channels={channelList}
+        agents={agents.data ?? []}
+        humanPanel={<HumanPanel name={humanName} human={human} error={humanError} onChangeName={onChangeName} />}
+      />
       <main className="content">
         <ErrorBox error={channels.error} />
         {content()}

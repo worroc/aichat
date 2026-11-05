@@ -1,33 +1,75 @@
-// Human identity per namespace, kept in sessionStorage (gone when the tab closes).
-import { useCallback, useState } from "react";
-import type { HumanResponse } from "../api/client";
+// The human the UI acts as.
+// - The name is asked once at login and kept in localStorage (it is not a secret).
+// - The token is per namespace, made on demand and kept in sessionStorage.
+import { useEffect, useState } from "react";
+import { opsApi, type HumanResponse } from "../api/client";
 
-const key = (ns: string) => `aichat.human.${ns}`;
+const NAME_KEY = "aichat.humanName";
+const tokenKey = (ns: string) => `aichat.human.${ns}`;
 
-function load(ns: string): HumanResponse | null {
-  const raw = sessionStorage.getItem(key(ns));
-  if (!raw) return null;
+export function getHumanName(): string | null {
   try {
-    return JSON.parse(raw) as HumanResponse;
+    return localStorage.getItem(NAME_KEY);
   } catch {
     return null;
   }
 }
 
-export function useHuman(ns: string) {
-  const [human, setHumanState] = useState<HumanResponse | null>(() => load(ns));
-  const [forNs, setForNs] = useState(ns);
-  if (forNs !== ns) {
-    setForNs(ns);
-    setHumanState(load(ns));
+export function setHumanName(name: string | null): void {
+  try {
+    if (name) localStorage.setItem(NAME_KEY, name);
+    else localStorage.removeItem(NAME_KEY);
+  } catch {
+    // Storage blocked: the name lives only in memory for this page.
   }
-  const setHuman = useCallback(
-    (value: HumanResponse | null) => {
-      if (value) sessionStorage.setItem(key(ns), JSON.stringify(value));
-      else sessionStorage.removeItem(key(ns));
-      setHumanState(value);
-    },
-    [ns],
-  );
-  return { human, setHuman };
+}
+
+/** The cached token for `ns`, only when it was made for `name`. */
+function load(ns: string, name: string): HumanResponse | null {
+  const raw = sessionStorage.getItem(tokenKey(ns));
+  if (!raw) return null;
+  try {
+    const human = JSON.parse(raw) as HumanResponse;
+    return human.name === name ? human : null;
+  } catch {
+    return null;
+  }
+}
+
+function save(ns: string, human: HumanResponse): void {
+  sessionStorage.setItem(tokenKey(ns), JSON.stringify(human));
+}
+
+interface Result {
+  ns: string;
+  name: string;
+  human: HumanResponse | null;
+  error: unknown;
+}
+
+/** Acts as `name` in `ns`: uses the cached token or asks the hub for one. */
+export function useHuman(ns: string, name: string): { human: HumanResponse | null; error: unknown } {
+  const [result, setResult] = useState<Result>(() => ({ ns, name, human: load(ns, name), error: null }));
+
+  useEffect(() => {
+    const cached = load(ns, name);
+    setResult({ ns, name, human: cached, error: null });
+    if (cached) return;
+    let live = true;
+    opsApi.createHuman(ns, name).then(
+      (human) => {
+        save(ns, human);
+        if (live) setResult({ ns, name, human, error: null });
+      },
+      (error: unknown) => {
+        if (live) setResult({ ns, name, human: null, error });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [ns, name]);
+
+  const current = result.ns === ns && result.name === name;
+  return { human: current ? result.human : null, error: current ? result.error : null };
 }

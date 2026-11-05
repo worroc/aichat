@@ -233,7 +233,7 @@ It runs the Vite dev server from `ui/`, in the background, and runs
 
 Log in with the operator key. You can:
 - see namespaces, the agent tree, rooms, DMs, threads, questions, read status and the audit log, all live
-- choose "Act as human" to post, DM or answer as a `human-…` identity
+- sign in with your `human-…` name once; the UI posts, DMs and answers as that human
 
 ## Security, in short
 
