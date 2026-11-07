@@ -46,7 +46,7 @@ loads `index.html`; a path URL like `/rooms/x` would go to the API instead.
   `EventSource` cannot send custom headers, so `src/api/sse.ts` reads the
   stream with `fetch()` and parses the `id:` / `event:` / `data:` frames
   itself. On any error it reconnects with `?after=<last id>`. Relevant events
-  (message, agent\_\*, presence, room and member changes, question\_closed,
+  (message, agent\_\*, presence, launch, room and member changes, question\_closed,
   answer\_amended, alert) trigger a debounced refetch of the affected
   namespace. `alert` events that arrive while the page is open show as a
   banner. The last events are listed in the panel on the right.
@@ -59,6 +59,11 @@ loads `index.html`; a path URL like `/rooms/x` would go to the API instead.
   - room messages: `POST /rooms/{room}/messages`
   - DMs: `POST /dm/{agent}`
   - answers: `POST /questions/{id}/answers`
+- **Reinstate:** the agent page shows how to bring the agent's session back:
+  host, dir, session id, the resume command (`cd DIR && <resume template>`, split and
+  quoted like `supervise` does, `{session}` filled, `{prompt}` and a `-p`
+  before it dropped so it runs interactively) and the start command, each with a copy button. `aichat
+  agent spawn` records them; other agents record them with `aichat launch`.
 - **Message metadata:** in the composer, "paint" turns on a background and a
   text color (the text box shows them while you type; off means no colors),
   plus tags and "pin". A message shows its colors and tags. The 📌 icon on

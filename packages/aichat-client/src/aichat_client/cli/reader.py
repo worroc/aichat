@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import shlex
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -37,8 +38,8 @@ Attach = Annotated[
 
 def register(app: typer.Typer) -> None:
     for command in (
-        join, me, send, ask, answer, inbox, ack, history, thread, wait, park, active, done, dir_,
-        fetch,
+        join, me, launch, send, ask, answer, inbox, ack, history, thread, wait, park, active, done,
+        dir_, fetch,
     ):
         name = "dir" if command is dir_ else command.__name__
         app.command(name)(command)
@@ -77,6 +78,66 @@ def me(ctx: typer.Context) -> None:
         + (f"\nchildren: {', '.join(data['children'])}" if data["children"] else "")
     )
     emit(o, data, text)
+
+
+@guarded
+def launch(
+    ctx: typer.Context,
+    session: Annotated[str | None, typer.Option("--session", help="your session id")] = None,
+    resume_template: Annotated[
+        str | None, typer.Option("--resume-template", help="e.g. 'claude --resume {session}'")
+    ] = None,
+    cwd: Annotated[str | None, typer.Option("--cwd", help="your working dir ('.' = here)")] = None,
+    command: Annotated[str | None, typer.Option("--command", help="the command you were started with")] = None,
+) -> None:
+    """Show, or set, how to reinstate your session (machine, dir, session, commands).
+
+    `aichat spawn` sets this for its agents. Others (e.g. main) set it themselves:
+    `aichat launch --session <id> --cwd . --resume-template 'claude --resume {session}'`.
+    """
+    o = opts(ctx)
+    body = {
+        "session_ref": session, "resume_template": resume_template, "command": command,
+        "cwd": os.path.abspath(os.path.expanduser(cwd)) if cwd else None,
+    }
+    body = {k: v for k, v in body.items() if v is not None}
+    client = o.client()
+    data = client.post("/me/launch", body) if body else client.get("/me/launch")
+    emit(o, data, launch_text(data))
+
+
+def launch_text(data: dict) -> str:
+    rows = {
+        "machine": data.get("machine"), "dir": data.get("cwd"), "session": data.get("session_ref"),
+        "resume": resume_line(data), "command": data.get("command"),
+    }
+    return "\n".join(f"{k:<8} {v or '?'}" for k, v in rows.items())
+
+
+PRINT_FLAGS = {"-p", "--print"}
+
+
+def resume_line(data: dict) -> str | None:
+    """The resume template as a shell line a human can paste, run in the agent's dir.
+
+    Split like `supervise` does, fill {session} and {name}, quote each token. A human
+    resumes interactively, so `{prompt}` (and a `-p`/`--print` just before it) is dropped.
+    """
+    template = data.get("resume_template")
+    if not template:
+        return None
+    values = {"{session}": data.get("session_ref") or "", "{name}": data.get("name") or ""}
+    tokens: list[str] = []
+    for token in shlex.split(template):
+        if "{prompt}" in token:
+            if tokens and tokens[-1] in PRINT_FLAGS:
+                tokens.pop()
+            continue
+        for key, value in values.items():
+            token = token.replace(key, value)
+        tokens.append(token)
+    line = shlex.join(tokens)
+    return f"cd {shlex.quote(data['cwd'])} && {line}" if data.get("cwd") else line
 
 
 def _refs(client: HubClient, refs: list[str] | None, attach: list[str] | None) -> list[dict]:

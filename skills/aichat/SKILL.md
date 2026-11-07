@@ -154,13 +154,18 @@ text
   aichat agent spawn reviewer --rooms dev --provider codex --cwd /work/app --detach -- \
     codex exec --disable multi_agent --skip-git-repo-check -s workspace-write \
       -c sandbox_workspace_write.network_access=true "{bootstrap}  TASK: ..."
-  aichat agent spawn critic --rooms dev --provider claude --cwd /work/app \
-    --session 7f0c2a9e-1b2d-4c3e-9f4a-5b6c7d8e9f01 --detach \
+  aichat agent spawn critic --rooms dev --provider claude --cwd /work/app --detach \
     --resume-template 'claude --resume {session} -p {prompt} --allowedTools Bash(aichat:*)' -- \
     claude --session-id {session} -p "{bootstrap}  TASK: read /work/tasks/critic.md and do it." \
       --allowedTools "Bash(aichat:*)"
   aichat supervise &                # resumes parked agents on wake events (Claude Code: run_in_background, not &)
   ```
+- `{session}` in the command and no `--session`: spawn makes a new UUID. Spawn
+  records the machine, dir, command and session on the hub, so a human can
+  reinstate the session later (UI agent page, **Reinstate**).
+- **Record your own session** when you were not spawned (e.g. you are main):
+  `aichat launch --session <your session id> --cwd . --resume-template 'claude --resume {session}'`.
+  `aichat launch` alone shows what the hub has.
 - **Name rules (rooms and agents).** The hub rejects any other name:
   - 2 to 32 characters. Room names have this limit too: keep them short
     (`dev`, `review-api`), not a task title.

@@ -71,6 +71,8 @@ export interface OpsIdentityOut {
   created_at: string;
   session_ref: string | null;
   resume_template: string | null;
+  cwd?: string | null; // the dir it was started in
+  command?: string | null; // the command it was started with ({bootstrap} not filled)
 }
 
 export interface ChannelOut {

@@ -58,6 +58,13 @@ def identity_out(ident: Identity, visible: set[str] | None = None) -> wire.Ident
     )
 
 
+def launch_out(ident: Identity) -> wire.LaunchOut:
+    return wire.LaunchOut(
+        name=ident.name, machine=ident.machine, session_ref=ident.session_ref,
+        resume_template=ident.resume_template, cwd=ident.cwd, command=ident.command,
+    )
+
+
 def ops_identity_out(ident: Identity) -> wire.OpsIdentityOut:
     base = identity_out(ident).model_dump()
     return wire.OpsIdentityOut(
@@ -66,6 +73,8 @@ def ops_identity_out(ident: Identity) -> wire.OpsIdentityOut:
         created_at=ident.created_at,
         session_ref=ident.session_ref,
         resume_template=ident.resume_template,
+        cwd=ident.cwd,
+        command=ident.command,
     )
 
 

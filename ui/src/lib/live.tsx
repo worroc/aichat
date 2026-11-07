@@ -10,6 +10,7 @@ const REFRESH_TYPES = new Set([
   "agent_joined",
   "agent_revoked",
   "presence",
+  "launch",
   "room_created",
   "member_added",
   "member_removed",

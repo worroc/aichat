@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS identities (
     tags TEXT NOT NULL, provider TEXT NOT NULL, description TEXT NOT NULL,
     session_ref TEXT, resume_template TEXT, created_at TEXT NOT NULL, last_seen TEXT,
     depends_on TEXT NOT NULL DEFAULT '[]', done_requested INTEGER NOT NULL DEFAULT 0,
-    machine TEXT, PRIMARY KEY (ns, name)
+    machine TEXT, cwd TEXT, command TEXT, PRIMARY KEY (ns, name)
 );
 CREATE TABLE IF NOT EXISTS credentials (
     hash TEXT PRIMARY KEY, ns TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
@@ -136,6 +136,8 @@ ADDED_COLUMNS = (
     ("identities", "depends_on", "TEXT NOT NULL DEFAULT '[]'"),
     ("identities", "done_requested", "INTEGER NOT NULL DEFAULT 0"),
     ("identities", "machine", "TEXT"),
+    ("identities", "cwd", "TEXT"),
+    ("identities", "command", "TEXT"),
     ("messages", "sender_machine", "TEXT"),
     ("messages", "metadata", "TEXT"),
 )
@@ -241,7 +243,7 @@ class SqliteIdentities:
     def _add(self, ns: str, i: Identity) -> None:
         try:
             self._db.run(
-                "INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 *_identity_row(ns, i),
             )
         except sqlite3.IntegrityError:
@@ -267,7 +269,8 @@ class SqliteIdentities:
         changed = self._db.run(
             "UPDATE identities SET uid = ?, role = ?, kind = ?, parent = ?, depth = ?, state = ?,"
             " tags = ?, provider = ?, description = ?, session_ref = ?, resume_template = ?,"
-            " created_at = ?, last_seen = ?, depends_on = ?, done_requested = ?, machine = ?"
+            " created_at = ?, last_seen = ?, depends_on = ?, done_requested = ?, machine = ?,"
+            " cwd = ?, command = ?"
             " WHERE ns = ? AND name = ?",
             *row[2:], ns, i.name,
         )
@@ -280,7 +283,7 @@ def _identity_row(ns: str, i: Identity) -> tuple[Any, ...]:
         ns, i.name, i.uid, i.role.value, i.kind.value, i.parent, i.depth, i.state.value,
         json.dumps(sorted(i.tags)), i.provider, i.description, i.session_ref,
         i.resume_template, _ts(i.created_at), _ts(i.last_seen), json.dumps(sorted(i.depends_on)),
-        int(i.done_requested), i.machine,
+        int(i.done_requested), i.machine, i.cwd, i.command,
     )
 
 
@@ -304,6 +307,8 @@ def _identity(row: sqlite3.Row) -> Identity:
         depends_on=frozenset(json.loads(row["depends_on"])),
         done_requested=bool(row["done_requested"]),
         machine=row["machine"],
+        cwd=row["cwd"],
+        command=row["command"],
     )
 
 

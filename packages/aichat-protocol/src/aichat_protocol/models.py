@@ -114,6 +114,24 @@ class StateRequest(BaseModel):
     resume_template: str | None = None
 
 
+class LaunchRequest(BaseModel):
+    """How to reinstate this agent's session. A field left out (None) keeps its value."""
+
+    session_ref: str | None = None
+    resume_template: str | None = None
+    cwd: str | None = Field(default=None, max_length=4096)
+    command: str | None = Field(default=None, max_length=8192)
+
+
+class LaunchOut(BaseModel):
+    name: str
+    machine: str | None
+    session_ref: str | None
+    resume_template: str | None
+    cwd: str | None
+    command: str | None
+
+
 class StateResponse(IdentityOut):
     # Agents that still depend on this one. Non-empty when `done` was asked for
     # and the hub parked the agent instead; the hub closes it when they finish.
@@ -314,6 +332,8 @@ class OpsIdentityOut(IdentityOut):
     created_at: datetime
     session_ref: str | None
     resume_template: str | None
+    cwd: str | None = None
+    command: str | None = None
 
 
 class ChannelOut(BaseModel):

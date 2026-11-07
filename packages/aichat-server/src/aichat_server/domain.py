@@ -85,6 +85,8 @@ class Identity:
     # closed by the hub; one parked while waiting for an answer is left alone.
     done_requested: bool = False
     machine: str | None = None  # the host it last called from; None: unknown (old client)
+    cwd: str | None = None  # the dir it was started in (for reinstating it)
+    command: str | None = None  # the command it was started with (for reinstating it)
 
     @property
     def revoked(self) -> bool:

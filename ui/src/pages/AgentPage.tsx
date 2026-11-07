@@ -12,6 +12,7 @@ import {
 import { Badge } from "../components/Badge";
 import { ErrorBox } from "../components/ErrorBox";
 import { MessageItem } from "../components/MessageItem";
+import { Reinstate } from "../components/Reinstate";
 import { ThreadView } from "../components/ThreadView";
 import { href, navigate } from "../lib/router";
 import { fullTime, relativeTime } from "../lib/time";
@@ -461,7 +462,10 @@ export function AgentPage({
           <h2>{name}</h2>
         </header>
         {agent ? (
-          <Details ns={ns} agent={agent} agents={agents} />
+          <>
+            <Details ns={ns} agent={agent} agents={agents} />
+            <Reinstate agent={agent} />
+          </>
         ) : (
           <p className="muted">agent not found</p>
         )}

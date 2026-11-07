@@ -749,3 +749,14 @@ body.resizing {
 .name-icon {
   margin-right: 0.35rem;
 }
+.reinstate-row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.15rem 0;
+}
+.reinstate-row code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}

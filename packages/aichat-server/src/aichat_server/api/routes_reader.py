@@ -28,6 +28,16 @@ async def set_state(req: wire.StateRequest, p: PrincipalDep, services: ServicesD
     return await services.identity.set_state(p, req)
 
 
+@router.get("/me/launch", response_model=wire.LaunchOut)
+async def launch(p: PrincipalDep, services: ServicesDep) -> wire.LaunchOut:
+    return await services.identity.launch(p)
+
+
+@router.post("/me/launch", response_model=wire.LaunchOut)
+async def set_launch(req: wire.LaunchRequest, p: PrincipalDep, services: ServicesDep):
+    return await services.identity.set_launch(p, req)
+
+
 @router.get("/directory", response_model=wire.DirectoryResponse)
 async def directory(
     p: PrincipalDep,

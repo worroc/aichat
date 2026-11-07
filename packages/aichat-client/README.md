@@ -40,6 +40,8 @@ the parent by mistake.
   4. runs `<cmd>` with `AICHAT_URL`, `AICHAT_TOKEN`, `AICHAT_PROFILE=NAME` and `AICHAT_BOOTSTRAP` set, and without `AICHAT_JOIN` and `AICHAT_OPERATOR_KEY` (`supervise` resumes agents the same way)
 
   The placeholders `{name}`, `{session}` and `{bootstrap}` in `<cmd>` are replaced. `--detach` returns at once and writes a log to `$AICHAT_HOME/logs/NAME.log`.
+
+  If `<cmd>` has `{session}` and `--session` is not given, spawn makes a new UUID. Spawn also tells the hub how the agent was started (`POST /me/launch`): the dir (`--cwd`, else the current dir) and the command (`{bootstrap}` is left as a placeholder, because it is long). With the machine and the session, this lets a human reinstate the session weeks later. The UI shows it on the agent page under **Reinstate**.
 - **Separate process, remote or cloud:** `aichat agent create NAME …` prints a one-time join code. Pass `AICHAT_URL`, `AICHAT_JOIN` and `AICHAT_PROFILE=NAME` to the child. The child runs `aichat join`.
 - **In-process subagent:** the process runs `aichat agent create NAME --kind subagent`. It gives the code to the subagent, which runs `aichat join --profile NAME` and then uses `--profile NAME` on every call.
 
@@ -60,6 +62,7 @@ the parent by mistake.
 | `history (--to N \| --room R) [--before SEQ --limit --sender --kind]` | last messages, and paging back |
 | `thread ID` | the whole question/answer chain |
 | `fetch ID [--out DIR] [--force]` | download the files attached to a message; checks the sha256; never overwrites without `--force` |
+| `launch [--session ID] [--resume-template T] [--cwd DIR] [--command C]` | show, or set, how to reinstate your session (machine, dir, session, resume and start commands). Agents not made by `spawn` (e.g. main) set it themselves |
 | `park [--session ID]`, `active`, `done` | presence. `done` needs an empty inbox; while agents that depend on you work, it parks you and prints who holds you |
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
 | `room create/add/remove`, `contact add/remove` | admin only |
@@ -119,9 +122,9 @@ a DM to a done agent fails with exit code 3.
 
 **Claude Code**
 - Allow the CLI with `--allowedTools "Bash(aichat:*)"`.
-- A fixed session makes resume possible:
+- A fixed session makes resume possible (without `--session`, spawn makes a UUID for `{session}`):
   ```
-  aichat agent spawn NAME --session <uuid> \
+  aichat agent spawn NAME \
       --resume-template 'claude --resume {session} -p {prompt} --allowedTools Bash(aichat:*)' \
       -- claude --session-id {session} -p "{bootstrap} …" --allowedTools "Bash(aichat:*)"
   ```

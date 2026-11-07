@@ -1,9 +1,12 @@
 """CLI tests against a real hub running in a background thread."""
 
 import json
+import os
+import shlex
 import socket
 import threading
 import time
+import uuid
 
 import pytest
 import typer
@@ -12,11 +15,11 @@ from aichat_client import envelope
 from aichat_protocol import envfile
 from aichat_client.cli.admin import child_env
 from aichat_client.cli.common import parse_ref
-from aichat_client.cli.reader import _safe_name
+from aichat_client.cli.reader import _safe_name, resume_line
 from aichat_client.cli.main import app
 from aichat_client.cli.session import slug
 from aichat_client.cli.supervise import Supervisor, build_argv, latest_seq
-from aichat_client.http import HubClient
+from aichat_client.http import HubClient, HubError
 from aichat_client.machine import machine_id
 from aichat_client.profile import load_profile
 from aichat_server import tls
@@ -492,3 +495,66 @@ def test_spawn_and_session_join_with_machine(cli, monkeypatch):
     found = cli.json("--profile", "machine-test", "dir")["identities"]
     assert {i["name"]: i["machine"] for i in found}["kid"] == "pc-s"
     assert cli.json("--profile", "machine-test", "me")["machine"] == "pc-s"
+
+
+def test_spawn_records_launch_info_with_a_new_session(cli, hub_url, tmp_path, monkeypatch):
+    monkeypatch.setenv("AICHAT_MACHINE", "pc-l")
+    _admin(cli)
+    work = tmp_path / "w"
+    work.mkdir()
+    out = tmp_path / "session.txt"
+    cli(
+        "--profile", "main", "agent", "spawn", "keeper", "--cwd", str(work),
+        "--resume-template", "claude --resume {session}",
+        "--", "sh", "-c", f"echo {{session}} > {out}", "{bootstrap}",
+    )
+    session = out.read_text().strip()
+    assert str(uuid.UUID(session)) == session
+    info = cli.json("--profile", "keeper", "launch")
+    assert info["machine"] == "pc-l" and info["cwd"] == str(work)
+    assert info["session_ref"] == session
+    assert info["command"] == shlex.join(["sh", "-c", f"echo {session} > {out}", "{bootstrap}"])
+
+
+def test_spawn_keeps_given_session_and_no_session_without_placeholder(cli):
+    _admin(cli)
+    cli("--profile", "main", "agent", "spawn", "given", "--session", "S1", "--", "true", "{session}")
+    assert cli.json("--profile", "given", "launch")["session_ref"] == "S1"
+    cli("--profile", "main", "agent", "spawn", "plain", "--", "true")
+    info = cli.json("--profile", "plain", "launch")
+    assert info["session_ref"] is None and info["cwd"] == os.getcwd()
+
+
+def test_launch_sets_own_info(cli, tmp_path):
+    _admin(cli)
+    cli("--profile", "main", "launch", "--session", "S7", "--cwd", str(tmp_path),
+        "--resume-template", "claude --resume {session}")
+    text = cli("--profile", "main", "launch").stdout
+    assert f"dir      {tmp_path}" in text and f"resume   cd {tmp_path} && claude --resume S7" in text
+
+
+def test_resume_line_is_safe_to_paste():
+    data = {
+        "resume_template": "claude --resume {session} -p {prompt} --allowedTools Bash(aichat:*)",
+        "session_ref": "x; rm -rf /", "cwd": "/work/my app",
+    }
+    assert resume_line(data) == (
+        "cd '/work/my app' && claude --resume 'x; rm -rf /' --allowedTools 'Bash(aichat:*)'"
+    )
+    assert resume_line({"resume_template": None}) is None
+
+
+def test_spawn_still_runs_when_the_hub_cannot_record_launch(cli, tmp_path, monkeypatch):
+    _admin(cli)
+    real_post = HubClient.post
+
+    def old_hub(self, path, body=None):
+        if path == "/me/launch":
+            raise HubError(404, "not_found", "no such route")
+        return real_post(self, path, body)
+
+    monkeypatch.setattr(HubClient, "post", old_hub)
+    out = tmp_path / "ran.txt"
+    result = cli("--profile", "main", "agent", "spawn", "oldhub", "--", "sh", "-c", f"echo ok > {out}")
+    assert out.read_text().strip() == "ok"
+    assert "could not record the launch info" in result.output

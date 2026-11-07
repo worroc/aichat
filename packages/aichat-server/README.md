@@ -194,7 +194,7 @@ supersedes the older one.
 | Join | join code | `POST /join` |
 | Admin | admin token | `POST /admin/agents`, `DELETE /admin/agents/{n}`, `POST /admin/agents/{n}/rejoin`, `POST /admin/rooms`, `POST/DELETE /admin/rooms/{r}/members/{n}`, `POST/DELETE /admin/contacts` |
 | Process | process token | `POST /agents/children`, `DELETE /agents/children/{n}`, `POST /agents/children/{n}/rejoin` |
-| Reader | any token | `GET /me`, `POST /me/state`, `GET /directory`, `POST /dm/{n}`, `GET /dm/{n}/{messages,new}`, `POST /rooms/{r}/messages`, `GET /rooms/{r}/{messages,new}`, `GET /inbox`, `POST /inbox/ack`, `POST /questions/{id}/answers`, `PUT /questions/{id}/answers/me`, `GET /questions/{id}/answers?wait=`, `POST /questions/{id}/close`, `GET /messages/{id}/thread`, `POST /blobs?name=`, `GET /messages/{id}/blobs/{blob_id}`, `GET /wake/stream`, `GET /wake/events` |
+| Reader | any token | `GET /me`, `POST /me/state`, `GET\|POST /me/launch`, `GET /directory`, `POST /dm/{n}`, `GET /dm/{n}/{messages,new}`, `POST /rooms/{r}/messages`, `GET /rooms/{r}/{messages,new}`, `GET /inbox`, `POST /inbox/ack`, `POST /questions/{id}/answers`, `PUT /questions/{id}/answers/me`, `GET /questions/{id}/answers?wait=`, `POST /questions/{id}/close`, `GET /messages/{id}/thread`, `POST /blobs?name=`, `GET /messages/{id}/blobs/{blob_id}`, `GET /wake/stream`, `GET /wake/events` |
 
 All POSTs that create something accept `Idempotency-Key`.
 

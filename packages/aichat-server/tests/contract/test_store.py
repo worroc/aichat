@@ -172,7 +172,9 @@ async def test_identity_lifetime_fields_round_trip(make_store):
     )
     await store.identities.add("ns1", ident)
     assert await store.identities.get("ns1", "lead") == ident
-    changed = replace(ident, state=State.PARKED, done_requested=True, machine="pc-a")
+    changed = replace(
+        ident, state=State.PARKED, done_requested=True, machine="pc-a", cwd="/w", command="claude"
+    )
     await store.identities.replace("ns1", changed)
     assert await store.identities.get("ns1", "lead") == changed
 
@@ -256,7 +258,7 @@ async def test_set_metadata_changes_only_the_metadata(make_store):
 
 async def test_sqlite_adds_machine_columns_to_an_old_file(tmp_path):
     path = tmp_path / "old.db"
-    old = SCHEMA.replace("    machine TEXT, PRIMARY KEY", "    PRIMARY KEY").replace(
+    old = SCHEMA.replace("    machine TEXT, cwd TEXT, command TEXT, PRIMARY KEY", "    PRIMARY KEY").replace(
         "    sender_machine TEXT, metadata TEXT, UNIQUE", "    UNIQUE"
     )
     assert old != SCHEMA
@@ -268,9 +270,10 @@ async def test_sqlite_adds_machine_columns_to_an_old_file(tmp_path):
         ns="ns1", uid="u1", name="lead", role=Role.AGENT, kind=Kind.PROCESS, parent=None,
         depth=0, state=State.ACTIVE, tags=frozenset(), provider="p", description="",
         session_ref=None, resume_template=None, created_at=datetime.now(UTC), machine="pc-a",
+        cwd="/w", command="claude",
     )
     await store.identities.add("ns1", ident)
-    assert (await store.identities.get("ns1", "lead")).machine == "pc-a"
+    assert await store.identities.get("ns1", "lead") == ident
     await _room(store)
     meta = MessageMetadata(tags=("x",))
     sent = await store.messages.add("ns1", _msg(sender_machine="pc-a", metadata=meta))

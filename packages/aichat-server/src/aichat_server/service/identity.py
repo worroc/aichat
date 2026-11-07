@@ -38,7 +38,7 @@ from ..security import (
 from .access import Access
 from .context import Ctx, now
 from .lifetime import Lifetime
-from .present import identity_out
+from .present import identity_out, launch_out
 
 TAG_PREFIX = "tag:"
 # Shown in the envelope header (from=bob@MACHINE): no spaces, brackets or newlines.
@@ -417,6 +417,18 @@ class IdentityService:
             **identity_out(current, visible).model_dump(),
             held_by=[n for n in held_by if n in visible],
         )
+
+    async def set_launch(self, p: Principal, req: wire.LaunchRequest) -> wire.LaunchOut:
+        """Record how to reinstate the caller's session. Fields left out keep their value."""
+        ident = await self.ctx.identity(p)
+        changes = {k: v for k, v in req.model_dump().items() if v is not None}
+        updated = replace(ident, **changes, last_seen=now())
+        await self.store.identities.replace(p.ns, updated)
+        await self.ctx.emit(p.ns, "launch", {"name": p.name})
+        return launch_out(updated)
+
+    async def launch(self, p: Principal) -> wire.LaunchOut:
+        return launch_out(await self.ctx.identity(p))
 
     async def me(self, p: Principal) -> wire.MeResponse:
         ident = await self.ctx.identity(p)

@@ -321,3 +321,23 @@ async def test_pin_of_a_hidden_message_is_not_found(hub):
     sent = await main.ok("post", "/dm/ann", {"text": "private"})
     resp = await b.put(f"/messages/{sent['message']['id']}/pin", {"pinned": True})
     assert code_of(resp) == "not_found"
+
+
+async def test_agent_sets_own_launch_info(hub):
+    ns, main = await hub.namespace()
+    got = await main.ok("post", "/me/launch", {"session_ref": "S9", "cwd": "/w"})
+    assert got["session_ref"] == "S9" and got["cwd"] == "/w" and got["command"] is None
+    got = await main.ok("post", "/me/launch", {"command": "claude"})
+    assert got["session_ref"] == "S9" and got["cwd"] == "/w" and got["command"] == "claude"
+    assert (await main.ok("get", "/me/launch")) == got
+    resp = await hub.client.get(f"/ops/ns/{ns}/agents", headers=hub.op)
+    ops = next(a for a in resp.json() if a["name"] == "main")
+    assert (ops["session_ref"], ops["cwd"], ops["command"]) == ("S9", "/w", "claude")
+
+
+async def test_launch_info_of_a_child_stays_private(hub):
+    _, main = await hub.namespace()
+    bob = await hub.agent(main, "bob")
+    await bob.ok("post", "/me/launch", {"cwd": "/secret"})
+    found = (await main.ok("get", "/directory"))["identities"]
+    assert all("cwd" not in i for i in found)

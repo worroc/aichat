@@ -1,13 +1,16 @@
 """Creating agents (admin: processes, processes: subagents), rooms, contacts."""
 
 import os
+import shlex
 import subprocess
+import uuid
 from typing import Annotated, Any
 
+import httpx
 import typer
 
 from .. import bootstrap
-from ..http import HubClient
+from ..http import HubClient, HubError
 from ..profile import Profile, config_dir, save_profile
 from .common import Options, emit, fail, guarded, opts, split_names
 
@@ -128,6 +131,10 @@ def spawn(
     AICHAT_URL, AICHAT_TOKEN, AICHAT_PROFILE and AICHAT_BOOTSTRAP. --cwd is kept in
     the agent's profile, so `supervise` resumes it in the same directory - no
     `sh -c 'cd DIR && ...'` wrapper needed.
+
+    When the command has {session} and --session is not given, a new UUID is used,
+    e.g. `-- claude --session-id {session} '{bootstrap}'`. The hub keeps the machine,
+    dir, command and session, so the session can be reinstated later (UI agent page).
     """
     o = opts(ctx)
     command = list(ctx.args)
@@ -136,6 +143,7 @@ def spawn(
     workdir = os.path.abspath(os.path.expanduser(cwd)) if cwd else ""
     if workdir and not os.path.isdir(workdir):
         fail(f"--cwd {cwd}: not a directory")
+    session = session_for(command, session)
     fields = _fields(
         contacts, rooms, tags, provider, description, resume_template, session, depends_on
     )
@@ -144,10 +152,33 @@ def spawn(
     url = o.credentials().url
     joined = HubClient(url).join(created["join_code"])
     save_profile(Profile(name=created["name"], url=url, token=joined["token"], cwd=workdir))
+    values = {"{name}": created["name"], "{session}": session or ""}
+    _record_launch(url, joined["token"], workdir or os.getcwd(), command, values)
     env = child_env(created["name"], url, joined["token"], prompt)
-    values = {"{name}": created["name"], "{session}": session or "", "{bootstrap}": prompt}
-    argv = [_fill(part, values) for part in command]
+    argv = [_fill(part, {**values, "{bootstrap}": prompt}) for part in command]
     _run(o, created["name"], argv, env, detach, workdir or None)
+
+
+def session_for(command: list[str], session: str | None) -> str | None:
+    """A new UUID when the command takes {session} but none was given."""
+    if session or not any("{session}" in part for part in command):
+        return session
+    return str(uuid.uuid4())
+
+
+def _record_launch(
+    url: str, token: str, workdir: str, command: list[str], values: dict[str, str]
+) -> None:
+    """Tell the hub how the agent was started. {bootstrap} stays a placeholder: it is long.
+
+    Best effort: the agent is already created and joined, so a failure here (e.g. an
+    older hub without /me/launch) must not stop it from starting. Warn and go on.
+    """
+    line = shlex.join(_fill(part, values) for part in command)
+    try:
+        HubClient(url, token).post("/me/launch", {"cwd": workdir, "command": line})
+    except (HubError, httpx.HTTPError) as exc:
+        typer.echo(f"warning: could not record the launch info on the hub: {exc}", err=True)
 
 
 def _fill(part: str, values: dict[str, str]) -> str:
