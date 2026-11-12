@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { opsApi, type ChannelOut, type OpsIdentityOut } from "../api/client";
 import { EventLog } from "../components/EventLog";
 import { ErrorBox } from "../components/ErrorBox";
@@ -116,7 +117,20 @@ export function NamespaceLayout({ route, humanName, onChangeName }: LayoutProps)
   const channels = useAsync(() => opsApi.channels(ns), [ns], version);
   const channelList = channels.data ?? [];
 
+  // A chat link becomes the DM channel of the human with the agent once the human is known;
+  // replace() keeps the link out of the back history.
+  const chatTo = route.page === "chat" ? route.name.trim().toLowerCase() : null;  // the hub lowercases names
+  useEffect(() => {
+    if (chatTo && human) {
+      const channelId = "dm:" + [human.name, chatTo].sort().join("|");
+      window.location.replace(href({ page: "channel", ns, channelId }));
+    }
+  }, [chatTo, human, ns]);
+
   const content = () => {
+    if (route.page === "chat") {
+      return <p className="muted">opening the chat with {route.name}…</p>;
+    }
     if (route.page === "channel") {
       return (
         <ChannelPage

@@ -234,6 +234,8 @@ It runs the Vite dev server from `ui/`, in the background, and runs
 Log in with the operator key. You can:
 - see namespaces, the agent tree, rooms, DMs, threads, questions, read status and the audit log, all live
 - sign in with your `human-…` name once; the UI posts, DMs and answers as that human ("Send message" on an agent page opens a DM)
+- link straight to a chat: `<ui>/#/ns/<namespace id>/chat/<agent>` opens your DM with that agent
+  (after login), e.g. for a session that wants to point you at another agent
 
 ## Security, in short
 
