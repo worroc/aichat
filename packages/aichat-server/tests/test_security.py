@@ -6,7 +6,7 @@ from conftest import code_of
 
 
 async def test_other_namespace_is_invisible(hub):
-    ns_a, main_a = await hub.namespace()
+    _, main_a = await hub.namespace()
     _, main_b = await hub.namespace()  # same admin name in another namespace
     await main_a.ok("post", "/admin/rooms", {"name": "dev"})
     await main_b.ok("post", "/admin/rooms", {"name": "dev"})
@@ -18,8 +18,18 @@ async def test_other_namespace_is_invisible(hub):
     history = await main_b.ok("get", "/rooms/dev/messages")
     assert history["messages"] == []
     assert (await main_b.post("/dm/bob", {"text": "hi"})).status_code == 404
-    assert "ns" not in (await bob_a.ok("get", "/me"))
-    assert ns_a not in (await bob_a.get("/me")).text
+
+
+async def test_agent_sees_its_namespace_id_but_not_the_title(hub, client):
+    op = hub.op
+    made = (await client.post("/ops/namespaces", json={"admin_name": "main", "title": "hidden-title"}, headers=op)).json()
+    main_a = await hub.join(made["join_code"])
+    ns_b, _ = await hub.namespace()
+    me = await main_a.get("/me")
+    assert me.json()["ns"] == made["ns_id"]
+    assert "hidden-title" not in me.text
+    # the id grants nothing: routes that take a namespace id need the operator key
+    assert (await main_a.get(f"/ops/ns/{ns_b}/channels")).status_code == 401
 
 
 async def test_dm_only_to_contacts(hub):

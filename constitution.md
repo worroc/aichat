@@ -65,8 +65,11 @@ engine tomorrow. Only the storage layer may know which one is in use.
   been shown to see the object. Visibility rules live in `service/access.py`.
 - **`sender` and `role` come only from the token's `Principal`.** Never add a
   `from` field to a request model.
-- The namespace id and title never leave the operator API. They are never
-  sent to agents.
+- The namespace title never leaves the operator API. It is never sent to
+  agents: it may hint how to behave.
+- An agent may see its own namespace id (`/me`), so it can build UI links.
+  The id grants nothing: an agent's namespace comes only from its token, and
+  every route that takes a namespace id needs the operator key.
 - Only hashes of tokens and join codes are stored.
 
 ## 5. Layering in the server

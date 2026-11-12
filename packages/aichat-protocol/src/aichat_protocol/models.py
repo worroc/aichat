@@ -94,6 +94,7 @@ class RoomOut(BaseModel):
 
 
 class MeResponse(BaseModel):
+    ns: str  # the caller's namespace id (never its title), for UI links
     name: str
     role: Role
     kind: Kind

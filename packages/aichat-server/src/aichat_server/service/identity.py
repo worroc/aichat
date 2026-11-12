@@ -438,6 +438,7 @@ class IdentityService:
         rooms = await self._rooms_of(p)
         children = sorted(n for n, i in identities.items() if i.parent == p.name and not i.revoked)
         return wire.MeResponse(
+            ns=p.ns,
             name=ident.name,
             role=ident.role.value,
             kind=ident.kind.value,

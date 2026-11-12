@@ -5,8 +5,10 @@ import os
 import shlex
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import quote, urlsplit
 
 import typer
+from aichat_protocol.names import normalize
 
 from .. import envelope
 from ..http import HubClient
@@ -38,7 +40,7 @@ Attach = Annotated[
 
 def register(app: typer.Typer) -> None:
     for command in (
-        join, me, launch, send, ask, answer, inbox, ack, history, thread, wait, park, active, done,
+        join, me, link, launch, send, ask, answer, inbox, ack, history, thread, wait, park, active, done,
         dir_, fetch,
     ):
         name = "dir" if command is dir_ else command.__name__
@@ -72,12 +74,35 @@ def me(ctx: typer.Context) -> None:
     contacts = ", ".join(f"{c['name']}[{c['state']}]" for c in data["contacts"]) or "(none)"
     rooms = ", ".join(f"#{r['name']}" for r in data["rooms"]) or "(none)"
     text = (
-        f"{data['name']} role={data['role']} kind={data['kind']} parent={data['parent']} "
+        f"{data['name']} ns={data['ns']} role={data['role']} kind={data['kind']} parent={data['parent']} "
         f"state={data['state']} machine={data.get('machine') or '?'}"
         f"\ncontacts: {contacts}\nrooms: {rooms}"
         + (f"\nchildren: {', '.join(data['children'])}" if data["children"] else "")
     )
     emit(o, data, text)
+
+
+def ui_base(hub_url: str) -> str:
+    """The operator UI: $AICHAT_UI_URL, else the hub's host on $AICHAT_UI_PORT (default 5173)."""
+    if os.environ.get("AICHAT_UI_URL"):
+        return os.environ["AICHAT_UI_URL"].rstrip("/")
+    hub = urlsplit(hub_url)
+    host = f"[{hub.hostname}]" if hub.hostname and ":" in hub.hostname else hub.hostname
+    return f"{hub.scheme}://{host}:{os.environ.get('AICHAT_UI_PORT') or 5173}"
+
+
+@guarded
+def link(
+    ctx: typer.Context,
+    name: Annotated[str | None, typer.Argument(help="the agent to chat with (default: you)")] = None,
+) -> None:
+    """Print the UI link that opens the human's DM with an agent (default: you)."""
+    o = opts(ctx)
+    client = o.client()
+    data = client.get("/me")
+    agent = normalize(name or data["name"])
+    url = f"{ui_base(o.credentials().url)}/#/ns/{quote(data['ns'], safe='')}/chat/{quote(agent, safe='')}"
+    emit(o, {"ns": data["ns"], "agent": agent, "url": url}, url)
 
 
 @guarded

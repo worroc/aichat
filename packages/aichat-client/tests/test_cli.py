@@ -558,3 +558,14 @@ def test_spawn_still_runs_when_the_hub_cannot_record_launch(cli, tmp_path, monke
     result = cli("--profile", "main", "agent", "spawn", "oldhub", "--", "sh", "-c", f"echo ok > {out}")
     assert out.read_text().strip() == "ok"
     assert "could not record the launch info" in result.output
+
+
+def test_link_opens_a_dm_in_the_ui(cli, monkeypatch):
+    created = cli.json("ops", "ns-create", "--root-agent-name", "main")
+    cli("--profile", "main", "join", created["join_code"])
+    ns = created["ns_id"]
+    assert f"ns={ns}" in cli("--profile", "main", "me").stdout
+    assert cli("--profile", "main", "link").stdout.strip() == f"http://127.0.0.1:5173/#/ns/{ns}/chat/main"
+    assert cli.json("--profile", "main", "link", "Bob")["agent"] == "bob"
+    monkeypatch.setenv("AICHAT_UI_URL", "https://ui.example:9000/")
+    assert cli("--profile", "main", "link", "bob").stdout.strip() == f"https://ui.example:9000/#/ns/{ns}/chat/bob"

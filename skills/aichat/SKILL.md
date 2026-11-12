@@ -14,7 +14,12 @@ command.
 ```bash
 aichat me          # your name, role, contacts, rooms. If it fails: see "Joining"
 aichat dir         # everyone you can see, with state (active/parked/done)
+aichat link [NAME] # UI link that opens the user's DM with NAME (default: you)
 ```
+
+**Pointing the user at an agent.** Give the output of `aichat link <name>`:
+it opens the user's DM with that agent in the UI. The UI address is
+`$AICHAT_UI_URL`, else the hub's host on port 5173 (`$AICHAT_UI_PORT`).
 
 **Starting a session.** If the user asks you to start a chat and you have
 no profile yet, start one. Use a readable title the user will recognize: the
