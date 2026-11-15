@@ -6,6 +6,7 @@ from aichat_protocol import models as wire
 from fastapi import APIRouter, Query, Request, Response
 
 from ..service.blobs import upload_meta
+from ..service.query import AgentFilter
 from .deps import IdempotencyKey, PrincipalDep, ServicesDep, blob_response, idempotent
 from .sse import sse_response
 
@@ -47,6 +48,32 @@ async def directory(
     state: str | None = None,
 ) -> wire.DirectoryResponse:
     return await services.identity.directory(p, tag, provider, state)
+
+
+# --- query: rooms and agents -------------------------------------------------------------
+
+
+@router.get("/rooms", response_model=wire.RoomsResponse)
+async def rooms(p: PrincipalDep, services: ServicesDep) -> wire.RoomsResponse:
+    return await services.query.rooms(p)
+
+
+@router.get("/rooms/{room}", response_model=wire.RoomInfoOut)
+async def room(room: str, p: PrincipalDep, services: ServicesDep) -> wire.RoomInfoOut:
+    return await services.query.room(p, room)
+
+
+@router.get("/agents", response_model=wire.AgentsResponse)
+async def agents(
+    p: PrincipalDep,
+    services: ServicesDep,
+    tag: str | None = None,
+    state: str | None = None,
+    parent: str | None = None,
+    provider: str | None = None,
+) -> wire.AgentsResponse:
+    flt = AgentFilter(tag=tag, state=state, parent=parent, provider=provider)
+    return await services.query.agents(p, flt)
 
 
 # --- direct messages --------------------------------------------------------------------

@@ -7,12 +7,14 @@ from ..notify import Notifier
 from ..store.base import Store
 from .access import Access
 from .blobs import BlobService
+from .common import CommonRoom
 from .context import Ctx
 from .identity import IdentityService
 from .lifetime import Lifetime
 from .messaging import MessagingService
 from .ops import OpsService
 from .present import Presenter
+from .query import QueryService
 from .reading import ReadingService
 from .rooms import RoomService
 
@@ -26,6 +28,7 @@ class Services:
     blobs: BlobService
     reading: ReadingService
     ops: OpsService
+    query: QueryService
 
 
 def build_services(store: Store, notifier: Notifier, settings: Settings) -> Services:
@@ -33,7 +36,8 @@ def build_services(store: Store, notifier: Notifier, settings: Settings) -> Serv
     access = Access(ctx)
     presenter = Presenter(store)
     reading = ReadingService(ctx, access, presenter)
-    identity = IdentityService(ctx, access, Lifetime(ctx, reading))
+    common = CommonRoom(ctx)
+    identity = IdentityService(ctx, access, Lifetime(ctx, reading), common)
     blobs = BlobService(ctx, access)
     return Services(
         ctx=ctx,
@@ -42,5 +46,6 @@ def build_services(store: Store, notifier: Notifier, settings: Settings) -> Serv
         messaging=MessagingService(ctx, access, presenter, reading, blobs),
         blobs=blobs,
         reading=reading,
-        ops=OpsService(ctx, presenter),
+        ops=OpsService(ctx, presenter, common),
+        query=QueryService(ctx, access),
     )

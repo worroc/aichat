@@ -306,6 +306,47 @@ class DirectoryResponse(BaseModel):
     identities: list[IdentityOut]
 
 
+# --- query API: rooms and agents -------------------------------------------
+
+
+class RoomMemberOut(BaseModel):
+    name: str
+    role: Role
+    kind: Kind
+    state: State
+    tags: list[str]
+
+
+class RoomInfoOut(BaseModel):
+    """A room with its members (``GET /rooms``, ``GET /rooms/{room}``)."""
+
+    name: str
+    history: History
+    created_at: datetime
+    last_message_at: datetime | None
+    members: list[RoomMemberOut]
+
+
+class RoomsResponse(BaseModel):
+    rooms: list[RoomInfoOut]
+
+
+class AgentOut(IdentityOut):
+    """An agent in ``GET /agents``. ``rooms``: only the rooms the caller may read.
+
+    ``launch`` (how to reinstate it) is filled only for the caller itself and for the admin.
+    """
+
+    depth: int
+    created_at: datetime
+    rooms: list[str]
+    launch: LaunchOut | None = None
+
+
+class AgentsResponse(BaseModel):
+    agents: list[AgentOut]
+
+
 # --- events / operator ----------------------------------------------------
 
 
@@ -335,6 +376,23 @@ class OpsIdentityOut(IdentityOut):
     resume_template: str | None
     cwd: str | None = None
     command: str | None = None
+
+
+class OpsRoomOut(RoomInfoOut):
+    ns: str
+
+
+class OpsAgentOut(OpsIdentityOut):
+    ns: str
+    rooms: list[str]
+
+
+class CommonBackfillOut(BaseModel):
+    """One namespace of ``POST /ops/common/backfill``."""
+
+    ns: str
+    created: bool  # the room did not exist before
+    added: list[str]
 
 
 class ChannelOut(BaseModel):

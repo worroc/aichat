@@ -16,8 +16,10 @@ from .common import Options, emit, fail, guarded, opts, split_names
 
 CHILD_ENV_DROP = {"AICHAT_JOIN", "AICHAT_TOKEN", "AICHAT_OPERATOR_KEY"}  # an agent never gets the operator key
 
-agent_app = typer.Typer(help="Create, spawn, revoke agents.", no_args_is_help=True)
-room_app = typer.Typer(help="Rooms (admin only).", no_args_is_help=True)
+agent_app = typer.Typer(help="List, create, spawn, revoke agents.", no_args_is_help=True)
+room_app = typer.Typer(
+    help="Rooms: list and show (anyone); create, add, remove (admin only).", no_args_is_help=True
+)
 contact_app = typer.Typer(help="Contacts (admin only).", no_args_is_help=True)
 
 Name = Annotated[str | None, typer.Argument(help="agent name (or use --name-prefix)")]

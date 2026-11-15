@@ -6,6 +6,7 @@ from ..domain import ChannelKind, Event, Identity, MessageFilter, MsgKind, Role,
 from ..notify import OPS_TOPIC, events_topic, reader_topic
 from ..security import Principal
 from .access import label
+from .common import CommonRoom
 from .context import Ctx
 from .present import Presenter, ops_identity_out
 
@@ -17,10 +18,11 @@ def event_out(event: Event) -> wire.EventOut:
 
 
 class OpsService:
-    def __init__(self, ctx: Ctx, presenter: Presenter) -> None:
+    def __init__(self, ctx: Ctx, presenter: Presenter, common: CommonRoom) -> None:
         self.ctx = ctx
         self.store = ctx.store
         self.presenter = presenter
+        self.common = common
 
     async def _ns(self, ns_id: str) -> str:
         if await self.store.namespaces.get(ns_id) is None:
@@ -141,6 +143,24 @@ class OpsService:
             )
             for e in entries
         ]
+
+    async def backfill_common(self, ns_id: str | None) -> list[wire.CommonBackfillOut]:
+        """Create the ``common`` room where it is missing and add every live agent.
+
+        For namespaces made before the hub created it. Safe to run again.
+        """
+        ids = [await self._ns(ns_id)] if ns_id else [n.id for n in await self.store.namespaces.list()]
+        return [await self._backfill_one(ns) for ns in ids]
+
+    async def _backfill_one(self, ns: str) -> wire.CommonBackfillOut:
+        names = {i.name for i in _agents(await self.store.identities.list(ns))}
+        room, created = await self.common.ensure(ns)
+        async with self.store.tx():
+            added = await self.common.add(room, names)
+        await self.common.announce(ns, created, added)
+        if created or added:
+            await self.ctx.audit(ns, "operator", "room.backfill", "common", detail=",".join(sorted(added)))
+        return wire.CommonBackfillOut(ns=ns, created=created, added=sorted(added))
 
     # --- streams --------------------------------------------------------------------
 

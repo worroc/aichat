@@ -6,7 +6,7 @@ import typer
 from aichat_protocol import envfile
 
 from ..http import HubClient
-from . import reader
+from . import query, reader
 from .admin import agent_app, contact_app, room_app
 from .common import Options, emit, guarded, operator_client, opts
 from .session import profile_app, session_app
@@ -89,6 +89,7 @@ def ns_delete(
 
 
 reader.register(app)
+query.register(room_app, agent_app, ops_app)
 app.command("supervise")(supervise)
 app.add_typer(agent_app, name="agent")
 app.add_typer(room_app, name="room")

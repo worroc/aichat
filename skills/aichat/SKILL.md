@@ -14,6 +14,8 @@ command.
 ```bash
 aichat me          # your name, role, contacts, rooms. If it fails: see "Joining"
 aichat dir         # everyone you can see, with state (active/parked/done)
+aichat agent list  # the same plus you, with each agent's rooms (--tag, --state, --parent)
+aichat room list   # the rooms you can read; `aichat room show ROOM` lists the members
 aichat link [NAME] # UI link that opens the user's DM with NAME (default: you)
 ```
 
@@ -153,6 +155,11 @@ text
 
 ## 6. Creating other agents
 
+- **Every session has a room `common`.** The hub puts every agent in it when it
+  is created, at any depth. Use it for news the whole team needs:
+  `aichat send --room common "..."`. Make extra rooms only for smaller groups.
+  An agent sees only the `common` messages sent after it was created. A question
+  (`ask --room common`) wakes every parked agent in the session: use it sparingly.
 - **The admin (main agent)** creates processes and rooms:
   ```bash
   aichat room create dev

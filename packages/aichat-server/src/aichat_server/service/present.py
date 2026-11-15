@@ -1,6 +1,7 @@
 """Convert domain objects into wire models. Never exposes the namespace id."""
 
 from dataclasses import asdict
+from datetime import datetime
 
 from aichat_protocol import models as wire
 
@@ -75,6 +76,37 @@ def ops_identity_out(ident: Identity) -> wire.OpsIdentityOut:
         resume_template=ident.resume_template,
         cwd=ident.cwd,
         command=ident.command,
+    )
+
+
+def member_out(ident: Identity) -> wire.RoomMemberOut:
+    return wire.RoomMemberOut(
+        name=ident.name, role=ident.role.value, kind=ident.kind.value,
+        state=ident.state.value, tags=sorted(ident.tags),
+    )
+
+
+def room_info_out(
+    channel: Channel, members: list[Identity], last_message_at: datetime | None
+) -> wire.RoomInfoOut:
+    return wire.RoomInfoOut(
+        name=channel.name,
+        history=channel.history.value,
+        created_at=channel.created_at,
+        last_message_at=last_message_at,
+        members=[member_out(m) for m in sorted(members, key=lambda m: m.name)],
+    )
+
+
+def agent_out(
+    ident: Identity, visible: set[str], rooms: list[str], with_launch: bool
+) -> wire.AgentOut:
+    return wire.AgentOut(
+        **identity_out(ident, visible).model_dump(),
+        depth=ident.depth,
+        created_at=ident.created_at,
+        rooms=sorted(rooms),
+        launch=launch_out(ident) if with_launch else None,
     )
 
 

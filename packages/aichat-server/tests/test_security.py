@@ -145,6 +145,7 @@ async def test_directory_shows_only_visible(hub):
     await hub.agent(main, "alice", rooms=["dev"], tags=["designer"])
     bob = await hub.agent(main, "bob", rooms=["dev"])
     await hub.agent(main, "hidden")
+    await hub.leave_common(main, "alice", "bob", "hidden")
     names = {i["name"] for i in (await bob.ok("get", "/directory"))["identities"]}
     assert names == {"alice", "main"}
     tagged = await bob.ok("get", "/directory", params={"tag": "designer"})

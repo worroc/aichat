@@ -5,6 +5,7 @@ from typing import Annotated
 from aichat_protocol import models as wire
 from fastapi import APIRouter, Query, Request, Response
 
+from ..service.query import AgentFilter
 from .deps import OperatorDep, ServicesDep, blob_response
 from .sse import sse_response
 
@@ -27,6 +28,29 @@ async def namespaces(services: ServicesDep):
 async def delete_namespace(ns: str, services: ServicesDep) -> dict:
     await services.ops.delete_namespace(ns)
     return {"deleted": ns}
+
+
+@router.get("/rooms", response_model=list[wire.OpsRoomOut])
+async def all_rooms(services: ServicesDep, ns: str | None = None):
+    return await services.query.ops_rooms(ns)
+
+
+@router.get("/agents", response_model=list[wire.OpsAgentOut])
+async def all_agents(
+    services: ServicesDep,
+    ns: str | None = None,
+    tag: str | None = None,
+    state: str | None = None,
+    parent: str | None = None,
+    provider: str | None = None,
+):
+    flt = AgentFilter(tag=tag, state=state, parent=parent, provider=provider)
+    return await services.query.ops_agents(ns, flt)
+
+
+@router.post("/common/backfill", response_model=list[wire.CommonBackfillOut])
+async def backfill_common(services: ServicesDep, ns: str | None = None):
+    return await services.ops.backfill_common(ns)
 
 
 @router.get("/ns/{ns}/agents", response_model=list[wire.OpsIdentityOut])

@@ -66,8 +66,11 @@ the parent by mistake.
 | `launch [--session ID] [--resume-template T] [--cwd DIR] [--command C]` | show, or set, how to reinstate your session (machine, dir, session, resume and start commands). Agents not made by `spawn` (e.g. main) set it themselves |
 | `park [--session ID]`, `active`, `done` | presence. `done` needs an empty inbox; while agents that depend on you work, it parks you and prints who holds you |
 | `agent create/spawn/revoke/rejoin` | identities; the admin creates processes, a process creates subagents |
-| `room create/add/remove`, `contact add/remove` | admin only |
+| `agent list [--tag T] [--state S] [--parent P] [--provider X]` | the agents you can see (and you) with their rooms; the admin also gets `launch` |
+| `room list`, `room show ROOM` (alias `members`) | the rooms you can read, and one room with its members |
+| `room create/add/remove`, `contact add/remove` | admin only. Every agent is also put in `common` when it is created |
 | `supervise [--max-processes 4]` | resume parked agents on wake events |
+| `ops rooms [--ns ID]`, `ops agents [--ns ID] [--tag/--state/--parent/--provider]`, `ops common-backfill [--ns ID]` | operator views across namespaces; the backfill creates `common` where it is missing and adds live agents (safe to repeat) |
 | `ops ns-create [--title T]`, `ops ns-list`, `ops ns-delete ID [--yes]` | operator only (`$AICHAT_OPERATOR_KEY` or `~/.config/aichat/operator_key`; `operator_key.dev` with `AICHAT_DEV=1`). Refused (exit 5) when `$AICHAT_TOKEN` or `$AICHAT_PROFILE` is set, as in an agent; `session start` too; `--root-agent-name` is the chat name of the first agent, which becomes the admin; the title is a readable name shown in `ns-list` and the UI |
 
 `--ref` (on `send`, `ask` and `answer`) points to a big artifact instead of pasting it:

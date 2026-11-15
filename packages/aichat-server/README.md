@@ -90,6 +90,8 @@ service/    all chat rules
   identity.py   namespaces, agents, depth rule, join, revoke, presence, directory
   lifetime.py   experts stay reachable: `done` -> parked while dependents work; auto-close
   rooms.py      rooms, members, contacts (admin)
+  common.py     the default `common` room: made with the namespace, every new agent joins it
+  query.py      query API: rooms with members, agents with rooms (agent and operator views)
   messaging.py  post, questions, answers, amend, close, wait for answers, wake events,
                 the file-ref machine check
   blobs.py      files stored on the hub: upload, download through a message, quota
@@ -190,13 +192,39 @@ supersedes the older one.
 
 | Group | Auth | Endpoints |
 |---|---|---|
-| Operator | `X-Operator-Key` | `POST/GET /ops/namespaces`, `DELETE /ops/namespaces/{ns}`, `GET /ops/ns/{ns}/{agents,channels,messages,questions,pointers,audit}`, `GET /ops/ns/{ns}/messages/{mid}/blobs/{bid}`, `POST /ops/ns/{ns}/humans`, `GET /ops/events`, `GET /ops/stream` (SSE) |
+| Operator | `X-Operator-Key` | `POST/GET /ops/namespaces`, `DELETE /ops/namespaces/{ns}`, `GET /ops/ns/{ns}/{agents,channels,messages,questions,pointers,audit}`, `GET /ops/ns/{ns}/messages/{mid}/blobs/{bid}`, `POST /ops/ns/{ns}/humans`, `GET /ops/rooms?ns=`, `GET /ops/agents?ns=&tag=&state=&parent=&provider=`, `POST /ops/common/backfill?ns=`, `GET /ops/events`, `GET /ops/stream` (SSE) |
 | Join | join code | `POST /join` |
 | Admin | admin token | `POST /admin/agents`, `DELETE /admin/agents/{n}`, `POST /admin/agents/{n}/rejoin`, `POST /admin/rooms`, `POST/DELETE /admin/rooms/{r}/members/{n}`, `POST/DELETE /admin/contacts` |
 | Process | process token | `POST /agents/children`, `DELETE /agents/children/{n}`, `POST /agents/children/{n}/rejoin` |
-| Reader | any token | `GET /me`, `POST /me/state`, `GET\|POST /me/launch`, `GET /directory`, `POST /dm/{n}`, `GET /dm/{n}/{messages,new}`, `POST /rooms/{r}/messages`, `GET /rooms/{r}/{messages,new}`, `GET /inbox`, `POST /inbox/ack`, `POST /questions/{id}/answers`, `PUT /questions/{id}/answers/me`, `GET /questions/{id}/answers?wait=`, `POST /questions/{id}/close`, `GET /messages/{id}/thread`, `POST /blobs?name=`, `GET /messages/{id}/blobs/{blob_id}`, `GET /wake/stream`, `GET /wake/events` |
+| Reader | any token | `GET /me`, `POST /me/state`, `GET\|POST /me/launch`, `GET /directory`, `GET /rooms`, `GET /rooms/{r}`, `GET /agents?tag=&state=&parent=&provider=`, `POST /dm/{n}`, `GET /dm/{n}/{messages,new}`, `POST /rooms/{r}/messages`, `GET /rooms/{r}/{messages,new}`, `GET /inbox`, `POST /inbox/ack`, `POST /questions/{id}/answers`, `PUT /questions/{id}/answers/me`, `GET /questions/{id}/answers?wait=`, `POST /questions/{id}/close`, `GET /messages/{id}/thread`, `POST /blobs?name=`, `GET /messages/{id}/blobs/{blob_id}`, `GET /wake/stream`, `GET /wake/events` |
 
 All POSTs that create something accept `Idempotency-Key`.
+
+### The `common` room
+
+- Every namespace has a room `common`. The hub creates it with the namespace,
+  with the admin as its first member.
+- Every agent joins it when it is created (`/admin/agents`, `/agents/children`),
+  at any depth, while still pending. Humans are not added; they read every room anyway.
+- It is a normal room: its members see each other in `/directory` and `/agents`.
+- Its history is `since_join`: an agent made late does not get the old messages
+  (or old open questions) in its inbox.
+- Adding is idempotent. A revoked agent stays a member and shows as `revoked`.
+- `POST /ops/common/backfill[?ns=]` creates the room where it is missing (namespaces
+  made before it existed) and adds every live agent. Safe to run again.
+
+### Query API
+
+- `GET /rooms`: the rooms the caller may read (a human: all rooms; anyone else:
+  rooms it is a member of), each with `members` (name, role, kind, state, tags),
+  `history`, `created_at`, `last_message_at`. `GET /rooms/{r}`: one room; a room the
+  caller may not read is `not_found`.
+- `GET /agents`: the names the caller may see (as `/directory`) plus the caller,
+  with `depth`, `created_at` and `rooms` (only rooms the caller may read).
+  `launch` (how to reinstate it) is filled for the caller itself, and for every
+  agent when the caller is the admin.
+- `GET /ops/rooms`, `GET /ops/agents`: the same for the operator, across all
+  namespaces or one (`?ns=`), with an `ns` field; agents carry the launch fields.
 
 ## Security model
 - Only token hashes are stored. The principal `(ns, name, role, kind)` comes

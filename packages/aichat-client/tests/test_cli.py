@@ -569,3 +569,54 @@ def test_link_opens_a_dm_in_the_ui(cli, monkeypatch):
     assert cli.json("--profile", "main", "link", "Bob")["agent"] == "bob"
     monkeypatch.setenv("AICHAT_UI_URL", "https://ui.example:9000/")
     assert cli("--profile", "main", "link", "bob").stdout.strip() == f"https://ui.example:9000/#/ns/{ns}/chat/bob"
+
+
+# --- common room and the query commands -------------------------------------------------
+
+
+def _admin_ns(cli) -> str:
+    created = cli.json("ops", "ns-create", "--root-agent-name", "main")
+    cli("--profile", "main", "join", created["join_code"])
+    return created["ns_id"]
+
+
+def test_room_list_and_show_json(cli):
+    _admin(cli)
+    cli("--profile", "main", "room", "create", "dev")
+    _agent(cli, "alice", "--tags", "designer")
+    rooms = cli.json("--profile", "alice", "room", "list")["rooms"]
+    assert [r["name"] for r in rooms] == ["common"]
+    assert set(rooms[0]) == {"name", "history", "created_at", "last_message_at", "members"}
+    shown = cli.json("--profile", "main", "room", "show", "common")
+    assert shown["members"] == [
+        {"name": "alice", "role": "agent", "kind": "process", "state": "active", "tags": ["designer"]},
+        {"name": "main", "role": "admin", "kind": "process", "state": "active", "tags": []},
+    ]
+    assert cli.json("--profile", "main", "room", "members", "common") == shown
+    assert "#common" in cli("--profile", "main", "room", "list").stdout
+    cli("--profile", "alice", "room", "show", "dev", code=4)
+
+
+def test_agent_list_json_and_filters(cli):
+    _admin(cli)
+    _agent(cli, "lead", "--tags", "dev")
+    agents = cli.json("--profile", "main", "agent", "list")["agents"]
+    assert [a["name"] for a in agents] == ["lead", "main"]
+    lead = agents[0]
+    assert lead["rooms"] == ["common"] and lead["kind"] == "process" and "launch" in lead
+    assert [a["name"] for a in cli.json("--profile", "main", "agent", "list", "--tag", "dev")["agents"]] == ["lead"]
+    assert cli.json("--profile", "main", "agent", "list", "--state", "done")["agents"] == []
+    assert "rooms=#common" in cli("--profile", "lead", "agent", "list").stdout
+
+
+def test_ops_rooms_agents_and_backfill(cli):
+    ns = _admin_ns(cli)
+    _agent(cli, "alice")
+    rooms = cli.json("ops", "rooms", "--ns", ns)
+    assert [(r["ns"], r["name"]) for r in rooms] == [(ns, "common")]
+    agents = cli.json("ops", "agents", "--ns", ns)
+    assert [(a["name"], a["rooms"]) for a in agents] == [("alice", ["common"]), ("main", ["common"])]
+    assert {"ns", "cwd", "command", "session_ref"} <= set(agents[0])
+    cli("--profile", "main", "room", "remove", "common", "alice")
+    assert cli.json("ops", "common-backfill", "--ns", ns) == [{"ns": ns, "created": False, "added": ["alice"]}]
+    assert "added=-" in cli("ops", "common-backfill", "--ns", ns).stdout

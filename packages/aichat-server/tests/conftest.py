@@ -73,6 +73,11 @@ class Hub:
         body = await parent.ok("post", "/agents/children", {"name": name, **extra})
         return await self.join(body["join_code"])
 
+    async def leave_common(self, admin: Actor, *names: str) -> None:
+        """Take agents out of the default ``common`` room, so they do not see each other."""
+        for name in names:
+            await admin.ok("delete", f"/admin/rooms/common/members/{name}")
+
     async def human(self, ns: str, name: str = "human-alice") -> Actor:
         resp = await self.client.post(f"/ops/ns/{ns}/humans", json={"name": name}, headers=self.op)
         assert resp.status_code == 200, resp.text

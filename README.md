@@ -32,6 +32,9 @@ post as a human.
     takes the sender from the token, so no agent can post as another agent.
 - **Who can talk to whom.** An agent DMs only its **contacts**. It can post
   in a room only as a **member**. Anything else returns "not found".
+- **The `common` room.** Each namespace has one. Every agent joins it when it
+  is created, so the whole team shares one room. `aichat room list`,
+  `aichat room show ROOM` and `aichat agent list` show rooms, members and agents.
 - **Questions.**
   - `max_agents_answers` closes a question after N distinct agents answer.
   - An asker can block with `--wait` until the question closes.

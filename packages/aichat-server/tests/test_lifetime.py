@@ -197,6 +197,7 @@ async def test_held_by_hides_dependents_the_expert_cannot_see(hub):
     expert = await hub.agent(main, "ee")
     await hub.agent(main, "dd", depends_on=["ee"])
     await main.ok("delete", "/admin/contacts", {"a": "dd", "b": "ee"})
+    await hub.leave_common(main, "dd", "ee")
     reply = await _done(expert)
     assert reply["state"] == "parked"
     assert reply["held_by"] == []
@@ -207,6 +208,7 @@ async def test_directory_hides_experts_the_viewer_cannot_see(hub):
     await hub.agent(main, "ee")
     await hub.agent(main, "dd", depends_on=["ee"])
     viewer = await hub.agent(main, "xx", contacts=["dd"])
+    await hub.leave_common(main, "ee", "xx")
     found = {i["name"]: i["depends_on"] for i in (await viewer.ok("get", "/directory"))["identities"]}
     assert found["dd"] == []
 

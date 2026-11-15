@@ -36,6 +36,7 @@ from ..security import (
     new_secret,
 )
 from .access import Access
+from .common import COMMON_ROOM, CommonRoom
 from .context import Ctx, now
 from .lifetime import Lifetime
 from .present import identity_out, launch_out
@@ -52,11 +53,12 @@ def clean_machine(raw: str | None) -> str | None:
 
 
 class IdentityService:
-    def __init__(self, ctx: Ctx, access: Access, lifetime: Lifetime) -> None:
+    def __init__(self, ctx: Ctx, access: Access, lifetime: Lifetime, common: CommonRoom) -> None:
         self.ctx = ctx
         self.store = ctx.store
         self.access = access
         self.lifetime = lifetime
+        self.common = common
 
     # --- authentication -------------------------------------------------------
 
@@ -94,8 +96,11 @@ class IdentityService:
             await self.store.namespaces.add(ns)
             await self.store.identities.add(ns.id, admin)
             await self.store.credentials.add(ns.id, self._join_cred(ns.id, admin_name, code))
+            room, created = await self.common.ensure(ns.id)
+            added = await self.common.add(room, {admin_name})
         await self.ctx.audit(ns.id, "operator", "namespace.create", admin_name)
         await self.ctx.emit(ns.id, "namespace_created", {"admin": admin_name, "title": ns.title})
+        await self.common.announce(ns.id, created, added)
         return wire.CreateNamespaceResponse(
             ns_id=ns.id, title=ns.title, admin_name=admin_name, join_code=code
         )
@@ -120,20 +125,23 @@ class IdentityService:
             depends_on=frozenset(experts),
         )
         code = new_secret(JOIN_PREFIX)
+        common, created = await self.common.ensure(p.ns)
         async with self.store.tx():
             await self.store.identities.add(p.ns, ident)
             await self.store.credentials.add(p.ns, self._join_cred(p.ns, name, code))
             await self._link(p.ns, name, {creator.name} | contacts | experts, rooms)
+            added = await self.common.add(common, {name})
         await self.lifetime.reopen(p.ns, experts)
         await self.ctx.audit(p.ns, p.name, "agent.create", name, detail=kind.value)
         await self.ctx.emit(p.ns, "agent_created", {"name": name, "parent": creator.name})
+        await self.common.announce(p.ns, created, added)
         return wire.CreateAgentResponse(
             name=name,
             join_code=code,
             kind=kind.value,
             parent=creator.name,
             contacts=sorted({creator.name} | contacts | experts),
-            rooms=sorted(r.name for r in rooms),
+            rooms=sorted({r.name for r in rooms} | {COMMON_ROOM}),
             tags=sorted(ident.tags),
             depends_on=sorted(experts),
         )
