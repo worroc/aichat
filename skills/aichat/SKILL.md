@@ -187,6 +187,15 @@ text
   - `human-` is for humans only.
   - The session title (`aichat session start "..."`) is free text and has no
     such limit.
+- **Label every agent.** The hub list shows names, and generated names
+  (`w-154519-9af349`, `rev-12005`) do not say what an agent is for. Give every
+  `agent create` / `agent spawn` a label tag with its job, and a one-line
+  description:
+  `--tags label:conductor,role:worker --description "runs the impl swarm"`.
+  Use short labels from the agent's role in the team: `label:conductor`,
+  `label:architect`, `label:coder`, `label:reviewer`, `label:tester`,
+  `label:observer`. Tags can not be changed after the agent exists, so set the
+  label when you create it. Find agents by it: `aichat agent list --tag label:reviewer`.
 - **`--cwd DIR`** runs the agent in DIR. The directory is kept in the agent's
   profile, so `supervise` resumes it there too. Claude sessions are per-directory,
   so a resume from anywhere else does not find the session. Never wrap the
